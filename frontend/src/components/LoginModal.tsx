@@ -3,11 +3,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Card } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Alert, AlertDescription } from './ui/alert';
-import { UserRole } from '../contexts/UserContext';
+import type { UserRole } from '../contexts/UserContext';
 import { Shield, Code, Settings, User, AlertCircle } from 'lucide-react';
 
 interface LoginModalProps {
@@ -17,7 +16,7 @@ interface LoginModalProps {
 
 export function LoginModal({ open, onLogin }: LoginModalProps) {
   const [username, setUsername] = useState('');
-  const [selectedRole, setSelectedRole] = useState<UserRole>(null);
+  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [productUsername, setProductUsername] = useState('');
   const [productPassword, setProductPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -33,11 +32,11 @@ export function LoginModal({ open, onLogin }: LoginModalProps) {
     
     // Mock backend authentication
     // In production, this would make an API call to verify credentials
-    const mockUsers = {
-      'admin': { password: 'admin123', role: 'Admin' as UserRole },
-      'developer': { password: 'dev123', role: 'Developer' as UserRole },
-      'devops': { password: 'devops123', role: 'DevOps Engineer' as UserRole },
-      'user': { password: 'user123', role: 'User' as UserRole },
+    const mockUsers: Record<string, { password: string; role: UserRole }> = {
+      admin: { password: 'admin123', role: 'Admin' },
+      developer: { password: 'dev123', role: 'Developer' },
+      devops: { password: 'devops123', role: 'DevOps Engineer' },
+      user: { password: 'user123', role: 'User' },
     };
 
     const user = mockUsers[productUsername.toLowerCase()];

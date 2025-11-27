@@ -9,7 +9,8 @@ import { Card } from './ui/card';
 import { Separator } from './ui/separator';
 import { Badge } from './ui/badge';
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
-import { useUser, UserRole } from '../contexts/UserContext';
+import { useUser } from '../contexts/UserContext';
+import type { UserRole } from '../contexts/UserContext';
 import { Shield, Download, Users, Database, Network, Bell, Code, BarChart3, Lock, Activity, DollarSign, CreditCard, TrendingUp } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Slider } from './ui/slider';
@@ -37,7 +38,7 @@ export function IAMPanel({ open, onOpenChange }: IAMPanelProps) {
   };
 
   // Mock data for users
-  const [users, setUsers] = useState([
+  const [users] = useState([
     { id: 1, username: 'john.doe', role: 'Developer', status: 'Active' },
     { id: 2, username: 'jane.smith', role: 'DevOps Engineer', status: 'Active' },
     { id: 3, username: 'admin.user', role: 'Admin', status: 'Active' },
@@ -525,7 +526,7 @@ export function IAMPanel({ open, onOpenChange }: IAMPanelProps) {
                         </div>
                         <Switch
                           disabled={!hasRole('DevOps Engineer')}
-                          onCheckedChange={(checked) => {
+                          onCheckedChange={() => {
                             if (!hasRole('DevOps Engineer')) {
                               checkAccess('DevOps Engineer', 'enable auto-scaling');
                             }

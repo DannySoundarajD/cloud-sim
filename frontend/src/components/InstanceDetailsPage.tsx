@@ -7,7 +7,6 @@ import {
   TabsList,
   TabsTrigger,
 } from "./ui/tabs";
-import { Separator } from "./ui/separator";
 import {
   Table,
   TableBody,

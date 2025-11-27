@@ -10,7 +10,8 @@ import { InstanceMonitoringPage } from "./components/InstanceMonitoringPage";
 import { CloudSimLogo } from "./components/CloudSimLogo";
 import { LoginModal } from "./components/LoginModal";
 import { IAMPanel } from "./components/IAMPanel";
-import { UserProvider, useUser, UserRole } from "./contexts/UserContext";
+import { UserProvider, useUser } from "./contexts/UserContext";
+import type { UserRole } from "./contexts/UserContext";
 
 function AppContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
