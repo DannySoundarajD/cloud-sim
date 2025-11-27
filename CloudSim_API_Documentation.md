@@ -5,10 +5,15 @@ This document describes the REST API endpoints for CloudSim, a cloud infrastruct
 
 **Base URL:** `https://api.cloudsim.com/v1`
 
-**Authentication:** Bearer token in `Authorization` header
+**Authentication:** Bearer token in `Authorization` header (enforced per role)
 ```
 Authorization: Bearer <token>
 ```
+
+**Roles & Access Control:**
+- **User**: Read-only monitoring; may start/stop own instances; no create/delete/storage/network changes.
+- **DevOps Engineer**: Create/scale/delete instances; attach storage; view network; adjust bandwidth/latency within admin policy.
+- **Admin**: Manage users/roles, quotas, network policy; export data; audit logs.
 
 **Content-Type:** `application/json`
 
@@ -1457,4 +1462,3 @@ API-Version: 1.0
 - Monitoring and metrics endpoints
 - Dashboard and overview endpoints
 - WebSocket support for real-time updates
-
