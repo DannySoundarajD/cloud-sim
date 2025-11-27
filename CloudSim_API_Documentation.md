@@ -3,17 +3,36 @@
 ## Overview
 This document describes the REST API endpoints for CloudSim, a cloud infrastructure simulation platform. The API supports EC2 instance management, monitoring, scaling, and resource provisioning operations.
 
-**Base URL:** `https://api.cloudsim.com/v1`
+**Base URL:** `https://api.cloudsim.com/v1` (prod) · `https://api.sandbox.cloudsim.com/v1` (sandbox)
 
 **Authentication:** Bearer token in `Authorization` header (enforced per role)
 ```
 Authorization: Bearer <token>
 ```
 
-**Roles & Access Control:**
+**Roles & Access Control (applies to all endpoints):**
 - **User**: Read-only monitoring; may start/stop own instances; no create/delete/storage/network changes.
 - **DevOps Engineer**: Create/scale/delete instances; attach storage; view network; adjust bandwidth/latency within admin policy.
 - **Admin**: Manage users/roles, quotas, network policy; export data; audit logs.
+
+**Conventions**
+- **Content type:** `application/json` for requests/responses.
+- **Idempotency:** For state-changing requests (POST/PUT/PATCH/DELETE), send `Idempotency-Key` header to safely retry.
+- **Rate limits:** Default 120 req/min per token; `429` returned when exceeded. `RateLimit-Limit/Remaining/Reset` headers provided.
+- **Error format:** Errors follow:
+  ```json
+  {
+    "error": {
+      "code": "invalid_request",
+      "message": "The field 'cpu' is required",
+      "details": [
+        {"field": "cpu", "issue": "required"}
+      ]
+    }
+  }
+  ```
+- **Pagination:** List endpoints accept `page` and `limit`; responses include `pagination` object.
+- **Filtering:** Unless noted, list endpoints allow filtering by region/state/id where applicable.
 
 **Content-Type:** `application/json`
 
