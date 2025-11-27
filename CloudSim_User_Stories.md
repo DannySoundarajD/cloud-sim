@@ -13,11 +13,11 @@ This document outlines the key user stories grouped by functional epics for the 
 
 | **As a** | **I want to** | **So that I can** | **Criteria** |
 |------------|----------------|---------------------|--------------------------|
-| User | View all my virtual instances | Monitor simulated infrastructure | Dashboard displays instance name, status, and metrics |
-| User | Create new instances | Simulate provisioning behavior | “Create Instance” triggers backend request → instance saved in DB |
-| User | Start or stop an instance | Manage compute lifecycle | Instance status toggles between *Running* and *Stopped* |
-| User | Delete an instance | Clean up unused resources | Instance removed from UI and DB |
-| User | View instance metrics | Track resource usage | CPU/RAM usage charts visible in dashboard |
+| User | View all my virtual instances | Monitor simulated infrastructure | Dashboard shows instance name, status, and metrics (read-only) |
+| User | Start or stop my instance | Manage compute lifecycle (operator-only) | Status toggles between *Running* and *Stopped*; no create/delete rights |
+| DevOps Engineer | Create new instances | Simulate provisioning behavior | “Create Instance” triggers backend request → instance saved in DB |
+| DevOps Engineer | Delete an instance | Clean up unused resources | Instance removed from UI and DB |
+| DevOps Engineer | View instance metrics | Track resource usage | CPU/RAM usage charts visible in dashboard |
 
 ---
 
@@ -27,7 +27,8 @@ This document outlines the key user stories grouped by functional epics for the 
 |------------|----------------|---------------------|--------------------------|
 | DevOps Engineer | Create and attach simulated storage volumes | Expand storage capacity | Volume appears in instance details |
 | DevOps Engineer | View network connections between instances | Understand topology | Network graph displayed in dashboard |
-| Admin User | Adjust bandwidth and latency | Test network performance | Network metrics dynamically update |
+| DevOps Engineer | Adjust bandwidth and latency | Test network performance | Network metrics dynamically update |
+| Admin | Set network policy limits | Enforce bandwidth/latency caps | Policy applied to DevOps changes; policy persists |
 
 ---
 
@@ -37,7 +38,7 @@ This document outlines the key user stories grouped by functional epics for the 
 |------------|----------------|---------------------|--------------------------|
 | User | View real-time metrics (CPU, RAM, I/O) | Monitor simulated performance | Metrics update every 5s via WebSocket |
 | DevOps Engineer | Receive alerts on threshold breaches | Detect anomalies | Alerts visible on dashboard and logged |
-| Admin User | Export metrics data | Perform external analysis | Exportable CSV generated via backend endpoint |
+| Admin | Export metrics data | Perform external analysis | Exportable CSV generated via backend endpoint |
 
 ---
 
@@ -45,8 +46,8 @@ This document outlines the key user stories grouped by functional epics for the 
 
 | **As a** | **I want to** | **So that I can** | **Criteria** |
 |------------|----------------|---------------------|--------------------------|
-| Admin User | Add or remove users | Control access | CRUD operations visible in admin panel |
-| Admin User | Set resource limits | Enforce quotas | System blocks instance creation beyond limit |
+| Admin | Add or remove users | Control access | CRUD operations visible in admin panel |
+| Admin | Set resource limits | Enforce quotas | System blocks instance creation beyond limit |
 | DevOps Engineer | Adjust simulation parameters | Tune orchestration behavior | Configurations persist between sessions |
 
 ---
@@ -67,7 +68,7 @@ This document outlines the key user stories grouped by functional epics for the 
 |------------|----------------|---------------------|--------------------------|
 | User | View cost simulation per resource | Estimate usage costs | Cost table per instance in UI |
 | DevOps Engineer | Simulate auto-scaling behavior | Test elasticity scenarios | Auto-scale triggers new instance creation |
-| Admin User | Track all user actions | Maintain audit trail | Logs persisted and exportable |
+| Admin | Track all user actions | Maintain audit trail | Logs persisted and exportable |
 
 ---
 

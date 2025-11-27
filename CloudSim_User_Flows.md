@@ -4,6 +4,11 @@
 This document describes detailed user flows for **resource provisioning**, **scaling**, and **termination** in CloudSim.  
 Each flow illustrates the user's interaction from the frontend interface to the backend API, database, and system response.
 
+### Roles & Permissions (alignment with user stories)
+- **User:** View monitoring data; start/stop own instances; no create/delete.
+- **DevOps Engineer:** Create/scale/delete instances; attach storage; view network topology; adjust bandwidth/latency within policy.
+- **Admin:** Manage users, quotas, and network policy; export metrics; audit.
+
 ---
 
 # Epic 1: Compute Instance Management (EC2 Simulation)
@@ -11,12 +16,12 @@ Each flow illustrates the user's interaction from the frontend interface to the 
 ## 1. Provisioning Flow (Create Instance)
 
 ### Goal
-Enable users to create new simulated compute instances within the CloudSim dashboard.
+Enable DevOps engineers to create new simulated compute instances within the CloudSim dashboard.
 
-### User Actions
-1. User clicks **+ New Instance”** on the dashboard.
+### User Actions (DevOps)
+1. DevOps clicks **+ New Instance** on the dashboard.
 2. A configuration modal appears (CPU, RAM, region, name).
-3. User submits the form → frontend sends POST request to `/api/instances/create`.
+3. DevOps submits the form → frontend sends POST request to `/api/instances/create`.
 4. Backend validates input, saves instance to DB, and starts orchestration simulation.
 5. System returns JSON response with instance ID and initial status (`creating`).
 6. Frontend updates dashboard and displays instance card with status badge.
@@ -50,10 +55,10 @@ Enable users to create new simulated compute instances within the CloudSim dashb
 ## 2. Scaling Flow (Modify Instance)
 
 ### Goal
-Allow users to scale compute resources or modify configurations dynamically.
+Allow DevOps engineers to scale compute resources or modify configurations dynamically.
 
-### User Actions
-1. User clicks **“Scale Instance”** button on instance card.
+### User Actions (DevOps)
+1. DevOps clicks **“Scale Instance”** button on instance card.
 2. System prompts for new configuration (CPU, RAM).
 3. Frontend sends PUT request to `/api/instances/scale/{id}`.
 4. Backend updates instance in DB and simulates resource adjustment.
@@ -86,10 +91,10 @@ Allow users to scale compute resources or modify configurations dynamically.
 ## 3. Termination Flow (Delete Instance)
 
 ### Goal
-Allow users to remove simulated instances safely from the system.
+Allow DevOps engineers to remove simulated instances safely from the system.
 
-### User Actions
-1. User selects an instance and clicks **“Terminate”**.
+### User Actions (DevOps)
+1. DevOps selects an instance and clicks **“Terminate”**.
 2. Confirmation modal appears (“Are you sure?”).
 3. Frontend sends DELETE request to `/api/instances/{id}`.
 4. Backend removes the instance record from DB.
@@ -115,12 +120,12 @@ Allow users to remove simulated instances safely from the system.
 ## 4. Storage Volume Attachment Flow
 
 ### Goal
-Allow users to create and attach simulated storage volumes to existing compute instances.
+Allow DevOps engineers to create and attach simulated storage volumes to existing compute instances.
 
-### User Actions
-1. User navigates to an instance detail page and clicks **“Attach Storage”**.
+### User Actions (DevOps)
+1. DevOps navigates to an instance detail page and clicks **“Attach Storage”**.
 2. A modal appears prompting volume name, size (GB), and type (SSD/HDD).
-3. User submits → frontend sends POST request to `/api/storage/create`.
+3. DevOps submits → frontend sends POST request to `/api/storage/create`.
 4. Backend creates a new volume record and associates it with the selected instance.
 5. Backend responds with success message and updated volume info.
 6. Frontend refreshes the instance page and lists the new attached volume.
@@ -156,10 +161,10 @@ Allow users to create and attach simulated storage volumes to existing compute i
 ## 5. Network Visualization Flow
 
 ### Goal
-Allow users to view simulated network connections between instances for better visibility of cloud topology.
+Allow DevOps engineers to view simulated network connections between instances for better visibility of cloud topology.
 
-### User Actions
-1. User clicks **“Network View”** on the dashboard.
+### User Actions (DevOps)
+1. DevOps clicks **“Network View”** on the dashboard.
 2. Frontend sends GET request to `/api/network/topology`.
 3. Backend retrieves all instance and connection data from the DB.
 4. Backend responds with topology graph data in JSON format.
@@ -227,10 +232,10 @@ Allow admin users to modify simulated bandwidth or latency between instances to 
 ## 7. Instance Metrics Retrieval Flow
 
 ### Goal
-Enable users to view live CPU, RAM, and network metrics for simulated instances in the CloudSim dashboard.
+Enable Users and DevOps engineers to view live CPU, RAM, and network metrics for simulated instances in the CloudSim dashboard.
 
-### User Actions
-1. User opens the **Monitoring tab** on the dashboard.
+### User Actions (User/DevOps)
+1. User/DevOps opens the **Monitoring tab** on the dashboard.
 2. Frontend sends GET request to `/api/metrics/{instance_id}`.
 3. Backend retrieves latest simulated performance data from DB or cache.
 4. Backend responds with JSON data containing metrics for CPU, memory, and network I/O.
@@ -262,10 +267,10 @@ Used for pushing real-time metric updates to the frontend every 5 seconds.
 ## 8. Threshold Alert Flow
 
 ### Goal
-Notify users when simulated resource usage exceeds predefined thresholds.
+Notify DevOps engineers when simulated resource usage exceeds predefined thresholds.
 
-### User Actions
-1. User configures alert thresholds for CPU, memory, or network via **Alert Settings** panel.
+### User Actions (DevOps)
+1. DevOps configures alert thresholds for CPU, memory, or network via **Alert Settings** panel.
 2. Frontend sends POST request to `/api/alerts/set` with chosen metrics and limits.
 3. Backend stores thresholds in DB and monitors metrics asynchronously.
 4. When a threshold is exceeded, backend emits alert event through WebSocket.
@@ -308,10 +313,10 @@ Notify users when simulated resource usage exceeds predefined thresholds.
 ## 9. Metrics Export Flow
 
 ### Goal
-Allow users to export historical performance data as CSV for offline analysis.
+Allow Admins to export historical performance data as CSV for offline analysis.
 
-### User Actions
-1. User clicks **“Export Metrics”** on the Monitoring page.
+### User Actions (Admin)
+1. Admin clicks **“Export Metrics”** on the Monitoring page.
 2. Frontend sends GET request to `/api/metrics/export?instance_id={id}`.
 3. Backend aggregates metric logs from DB and formats them as CSV.
 4. Backend returns downloadable file response.
