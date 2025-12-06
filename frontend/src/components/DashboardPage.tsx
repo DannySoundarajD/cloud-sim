@@ -1,62 +1,12 @@
+import { useEffect, useState } from 'react';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Progress } from './ui/progress';
-import { Server, Play, Square, RotateCw, Trash2, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
-
-const instances = [
-  {
-    id: 'i-0a1b2c3d4e5f6g7h8',
-    name: 'web-server-01',
-    type: 't2.micro',
-    state: 'running',
-    zone: 'us-east-1a',
-    publicIp: '54.123.45.67',
-    privateIp: '172.31.16.22',
-    uptime: '5d 14h',
-  },
-  {
-    id: 'i-1b2c3d4e5f6g7h8i9',
-    name: 'api-server-01',
-    type: 't3.medium',
-    state: 'running',
-    zone: 'us-east-1b',
-    publicIp: '54.123.45.68',
-    privateIp: '172.31.18.45',
-    uptime: '12d 3h',
-  },
-  {
-    id: 'i-2c3d4e5f6g7h8i9j0',
-    name: 'db-server-01',
-    type: 'm5.large',
-    state: 'running',
-    zone: 'us-east-1a',
-    publicIp: '54.123.45.69',
-    privateIp: '172.31.20.12',
-    uptime: '28d 7h',
-  },
-  {
-    id: 'i-3d4e5f6g7h8i9j0k1',
-    name: 'staging-server',
-    type: 't2.small',
-    state: 'stopped',
-    zone: 'us-east-1c',
-    publicIp: '-',
-    privateIp: '172.31.22.88',
-    uptime: '-',
-  },
-  {
-    id: 'i-4e5f6g7h8i9j0k1l2',
-    name: 'dev-server-02',
-    type: 't2.micro',
-    state: 'running',
-    zone: 'us-east-1b',
-    publicIp: '54.123.45.70',
-    privateIp: '172.31.25.34',
-    uptime: '2d 18h',
-  },
-];
+import { Server, Play, Square, RotateCw, Trash2, AlertTriangle, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { fetchInstances, deleteInstance, type Instance } from '../api/instances';
+import { toast } from 'sonner';
 
 const alarms = [
   { name: 'web-server-01-cpu-high', instance: 'web-server-01', status: 'ok', metric: 'CPU Utilization' },
@@ -76,10 +26,49 @@ interface DashboardPageProps {
 }
 
 export function DashboardPage({ onInstanceClick }: DashboardPageProps) {
+  const [instances, setInstances] = useState<Instance[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchInstances();
+      setInstances(data);
+    } catch (error) {
+      console.error('Failed to fetch instances:', error);
+      toast.error('Failed to load instances');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteInstance(id);
+      toast.success('Instance terminated successfully');
+      loadData(); // Refresh list
+    } catch (error) {
+      console.error('Failed to delete instance:', error);
+      toast.error('Failed to terminate instance');
+    }
+  };
+
   const runningInstances = instances.filter(i => i.state === 'running').length;
   const stoppedInstances = instances.filter(i => i.state === 'stopped').length;
   const totalInstances = instances.length;
   const activeAlarms = alarms.filter(a => a.status === 'alarm').length;
+
+  if (loading) {
+    return (
+      <div className="flex h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -142,7 +131,7 @@ export function DashboardPage({ onInstanceClick }: DashboardPageProps) {
         <div className="flex justify-between items-center mb-4">
           <h3>All Instances</h3>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={loadData}>
               <RotateCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
@@ -163,57 +152,65 @@ export function DashboardPage({ onInstanceClick }: DashboardPageProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {instances.map((instance) => (
-              <TableRow key={instance.id}>
-                <TableCell>
-                  <button
-                    onClick={onInstanceClick}
-                    className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
-                  >
-                    {instance.name}
-                  </button>
-                </TableCell>
-                <TableCell className="font-mono text-xs">{instance.id}</TableCell>
-                <TableCell>{instance.type}</TableCell>
-                <TableCell>
-                  <Badge
-                    className={
-                      instance.state === 'running'
-                        ? 'bg-green-600'
-                        : instance.state === 'stopped'
-                        ? 'bg-gray-500'
-                        : 'bg-yellow-600'
-                    }
-                  >
-                    {instance.state}
-                  </Badge>
-                </TableCell>
-                <TableCell>{instance.zone}</TableCell>
-                <TableCell className="font-mono text-xs">{instance.publicIp}</TableCell>
-                <TableCell>{instance.uptime}</TableCell>
-                <TableCell>
-                  <div className="flex gap-1">
-                    {instance.state === 'stopped' ? (
-                      <Button variant="ghost" size="sm" title="Start">
-                        <Play className="h-4 w-4 text-green-600" />
-                      </Button>
-                    ) : (
-                      <>
-                        <Button variant="ghost" size="sm" title="Stop">
-                          <Square className="h-4 w-4 text-gray-600" />
-                        </Button>
-                        <Button variant="ghost" size="sm" title="Reboot">
-                          <RotateCw className="h-4 w-4 text-blue-600" />
-                        </Button>
-                      </>
-                    )}
-                    <Button variant="ghost" size="sm" title="Terminate">
-                      <Trash2 className="h-4 w-4 text-red-600" />
-                    </Button>
-                  </div>
+            {instances.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center h-24 text-gray-500">
+                  No instances found. Launch one!
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              instances.map((instance) => (
+                <TableRow key={instance.id}>
+                  <TableCell>
+                    <button
+                      onClick={onInstanceClick}
+                      className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                    >
+                      {instance.name}
+                    </button>
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">{instance.id}</TableCell>
+                  <TableCell>{instance.type}</TableCell>
+                  <TableCell>
+                    <Badge
+                      className={
+                        instance.state === 'running'
+                          ? 'bg-green-600'
+                          : instance.state === 'stopped'
+                            ? 'bg-gray-500'
+                            : 'bg-yellow-600'
+                      }
+                    >
+                      {instance.state}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{instance.zone}</TableCell>
+                  <TableCell className="font-mono text-xs">{instance.publicIp}</TableCell>
+                  <TableCell>{instance.uptime}</TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      {instance.state === 'stopped' ? (
+                        <Button variant="ghost" size="sm" title="Start">
+                          <Play className="h-4 w-4 text-green-600" />
+                        </Button>
+                      ) : (
+                        <>
+                          <Button variant="ghost" size="sm" title="Stop">
+                            <Square className="h-4 w-4 text-gray-600" />
+                          </Button>
+                          <Button variant="ghost" size="sm" title="Reboot">
+                            <RotateCw className="h-4 w-4 text-blue-600" />
+                          </Button>
+                        </>
+                      )}
+                      <Button variant="ghost" size="sm" title="Terminate" onClick={() => handleDelete(instance.id)}>
+                        <Trash2 className="h-4 w-4 text-red-600" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </Card>
@@ -222,7 +219,7 @@ export function DashboardPage({ onInstanceClick }: DashboardPageProps) {
         {/* Instance Alarms */}
         <Card className="p-6">
           <h3 className="mb-4">Instance Alarms</h3>
-          
+
           <div className="space-y-3">
             {alarms.map((alarm, index) => (
               <div
@@ -264,7 +261,7 @@ export function DashboardPage({ onInstanceClick }: DashboardPageProps) {
         {/* Zone Health */}
         <Card className="p-6">
           <h3 className="mb-4">Availability Zone Health</h3>
-          
+
           <div className="space-y-4">
             {zones.map((zone, index) => (
               <div key={index} className="space-y-2">
@@ -283,7 +280,7 @@ export function DashboardPage({ onInstanceClick }: DashboardPageProps) {
                   </div>
                   <span className="text-sm text-gray-600">{zone.instances} instances</span>
                 </div>
-                
+
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs text-gray-600">
                     <span>Avg CPU: {zone.cpuAvg}%</span>
@@ -312,7 +309,7 @@ export function DashboardPage({ onInstanceClick }: DashboardPageProps) {
       {/* Resource Usage Summary */}
       <Card className="p-6">
         <h3 className="mb-4">Resource Usage Summary</h3>
-        
+
         <div className="grid grid-cols-3 gap-6">
           <div>
             <div className="flex justify-between items-center mb-2">
