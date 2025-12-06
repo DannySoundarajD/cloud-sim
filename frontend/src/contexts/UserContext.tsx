@@ -1,6 +1,7 @@
 import { createContext, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
 
+/* eslint-disable react-refresh/only-export-components */
 export type UserRole = 'Admin' | 'Developer' | 'DevOps Engineer' | 'User' | null;
 
 interface User {
