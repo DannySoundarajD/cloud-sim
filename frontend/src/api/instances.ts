@@ -1,5 +1,5 @@
 import { api } from './client';
-import { api{ from }}
+
 export interface Instance {
     id: string;
     name: string;
