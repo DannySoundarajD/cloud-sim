@@ -428,7 +428,10 @@ export function CreateInstanceModal({ open, onOpenChange }: CreateInstanceModalP
               {step < 4 ? (
                 <Button onClick={handleNext}>Next</Button>
               ) : (
-                <Button onClick={handleLaunch}>Launch Instance</Button>
+                <Button onClick={handleLaunch} disabled={isLaunching}>
+                  {isLaunching && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {isLaunching ? 'Launching...' : 'Launch Instance'}
+                </Button>
               )}
             </div>
           </div>
