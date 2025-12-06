@@ -51,9 +51,24 @@ export function CreateInstanceModal({ open, onOpenChange }: CreateInstanceModalP
   const [step, setStep] = useState(1);
   const [isLaunching, setIsLaunching] = useState(false);
 
-  // ... (keep existing state)
+  // Form state
+  const [instanceName, setInstanceName] = useState('web-server-01');
+  const [selectedAmi, setSelectedAmi] = useState('ami-1');
+  const [selectedInstanceType, setSelectedInstanceType] = useState('t2.micro');
+  const [selectedVpc, setSelectedVpc] = useState('vpc-1');
+  const [selectedSecurityGroup, setSelectedSecurityGroup] = useState('sg-1');
+  const [volumeSize, setVolumeSize] = useState('8');
 
-  // ... (keep existing handleNext/Back)
+  const handleNext = () => {
+    if (step < 4) setStep(step + 1);
+  };
+
+  const handleBack = () => {
+    if (step > 1) setStep(step - 1);
+  };
+
+  // Calculate estimated monthly cost
+  const monthlyCost = (instanceTypes[selectedInstanceType as keyof typeof instanceTypes].price * 730).toFixed(2);
 
   const handleLaunch = async () => {
     try {
