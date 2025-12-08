@@ -30,7 +30,7 @@ const enrichInstance = (instance: Instance): Instance => {
         zone: 'us-east-1a', // Mock
         publicIp: '54.123.45.67', // Mock
         privateIp: '172.31.22.88', // Mock
-        uptime: '1d 2h', // Mock
+        uptime: '0d 0h', // Mock
     };
 };
 

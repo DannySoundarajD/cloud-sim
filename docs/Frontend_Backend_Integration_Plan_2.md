@@ -45,7 +45,7 @@ This document tracks the progress of integrating the React frontend with the Fas
 **Backend (Terminal 1):**
 ```bash
 cd backend
-source .venv/bin/activate
+source ../.venv/bin/activate
 uvicorn app.main:app --reload
 ```
 *Server will run at `http://127.0.0.1:8000`*
