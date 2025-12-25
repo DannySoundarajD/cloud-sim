@@ -20,3 +20,8 @@ pnpm-debug.log*
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Dogs
+docs/
+ProjectSprintPlan.csv
+
