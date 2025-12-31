@@ -7,7 +7,8 @@ import { Card } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Alert, AlertDescription } from './ui/alert';
 import type { UserRole } from '../contexts/UserContext';
-import { Shield, Code, Settings, User, AlertCircle } from 'lucide-react';
+import { useUser } from '../contexts/UserContext';
+import { Shield, Code, Settings, User, AlertCircle, Loader2 } from 'lucide-react';
 
 interface LoginModalProps {
   open: boolean;
@@ -15,11 +16,17 @@ interface LoginModalProps {
 }
 
 export function LoginModal({ open, onLogin }: LoginModalProps) {
+  const { loginWithCredentials, register, error, clearError, isLoading } = useUser();
+
+  // Tester mode state
   const [username, setUsername] = useState('');
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
-  const [productUsername, setProductUsername] = useState('');
+
+  // Product mode state
+  const [productEmail, setProductEmail] = useState('');
   const [productPassword, setProductPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [localError, setLocalError] = useState('');
 
   const handleTesterLogin = () => {
     if (username && selectedRole) {
@@ -27,24 +34,23 @@ export function LoginModal({ open, onLogin }: LoginModalProps) {
     }
   };
 
-  const handleProductLogin = () => {
-    setLoginError('');
-    
-    // Mock backend authentication
-    // In production, this would make an API call to verify credentials
-    const mockUsers: Record<string, { password: string; role: UserRole }> = {
-      admin: { password: 'admin123', role: 'Admin' },
-      developer: { password: 'dev123', role: 'Developer' },
-      devops: { password: 'devops123', role: 'DevOps Engineer' },
-      user: { password: 'user123', role: 'User' },
-    };
+  /**
+   * Handle production login with real backend
+   * Uses JWT auth via the auth API
+   */
+  const handleProductLogin = async () => {
+    setLocalError('');
+    clearError();
 
-    const user = mockUsers[productUsername.toLowerCase()];
-    
-    if (user && user.password === productPassword) {
-      onLogin(productUsername, user.role);
-    } else {
-      setLoginError('Invalid username or password');
+    try {
+      if (isRegisterMode) {
+        await register(productEmail, productPassword);
+      } else {
+        await loginWithCredentials(productEmail, productPassword);
+      }
+      // Success - context will update user state
+    } catch (err) {
+      setLocalError((err as Error).message);
     }
   };
 
@@ -80,8 +86,8 @@ export function LoginModal({ open, onLogin }: LoginModalProps) {
   ];
 
   return (
-    <Dialog open={open} onOpenChange={() => {}}>
-      <DialogContent className="max-w-2xl">
+    <Dialog open={open} onOpenChange={() => { }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Login to CloudSim</DialogTitle>
           <DialogDescription>
@@ -122,11 +128,10 @@ export function LoginModal({ open, onLogin }: LoginModalProps) {
                   return (
                     <Card
                       key={role.value}
-                      className={`p-4 cursor-pointer transition-all ${
-                        selectedRole === role.value
-                          ? 'border-orange-500 bg-orange-50'
-                          : 'hover:border-gray-400'
-                      }`}
+                      className={`p-4 cursor-pointer transition-all ${selectedRole === role.value
+                        ? 'border-orange-500 bg-orange-50'
+                        : 'hover:border-gray-400'
+                        }`}
                       onClick={() => setSelectedRole(role.value as UserRole)}
                     >
                       <div className="flex items-start gap-3">
@@ -175,30 +180,33 @@ export function LoginModal({ open, onLogin }: LoginModalProps) {
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                Production mode authenticates against the backend database. Your role will be determined by your credentials.
+                {isRegisterMode
+                  ? 'Create a new account to access CloudSim features.'
+                  : 'Production mode authenticates against the backend database.'}
               </AlertDescription>
             </Alert>
 
-            {loginError && (
+            {(localError || error) && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{loginError}</AlertDescription>
+                <AlertDescription>{localError || error}</AlertDescription>
               </Alert>
             )}
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="product-username">Username</Label>
+                <Label htmlFor="product-email">Email</Label>
                 <Input
-                  id="product-username"
-                  placeholder="Enter your username"
-                  value={productUsername}
+                  id="product-email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={productEmail}
                   onChange={(e) => {
-                    setProductUsername(e.target.value);
-                    setLoginError('');
+                    setProductEmail(e.target.value);
+                    setLocalError('');
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && productUsername && productPassword) {
+                    if (e.key === 'Enter' && productEmail && productPassword) {
                       handleProductLogin();
                     }
                   }}
@@ -214,10 +222,10 @@ export function LoginModal({ open, onLogin }: LoginModalProps) {
                   value={productPassword}
                   onChange={(e) => {
                     setProductPassword(e.target.value);
-                    setLoginError('');
+                    setLocalError('');
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && productUsername && productPassword) {
+                    if (e.key === 'Enter' && productEmail && productPassword) {
                       handleProductLogin();
                     }
                   }}
@@ -225,23 +233,36 @@ export function LoginModal({ open, onLogin }: LoginModalProps) {
               </div>
             </div>
 
-            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-              <p className="text-sm font-medium mb-2">Demo Credentials:</p>
-              <div className="space-y-1 text-xs text-gray-600">
-                <p>Admin: admin / admin123</p>
-                <p>Developer: developer / dev123</p>
-                <p>DevOps: devops / devops123</p>
-                <p>User: user / user123</p>
-              </div>
-            </div>
-
             <Button
               className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
               onClick={handleProductLogin}
-              disabled={!productUsername || !productPassword}
+              disabled={!productEmail || !productPassword || isLoading}
             >
-              Login
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {isRegisterMode ? 'Creating Account...' : 'Logging in...'}
+                </>
+              ) : (
+                isRegisterMode ? 'Create Account' : 'Login'
+              )}
             </Button>
+
+            <div className="text-center">
+              <button
+                type="button"
+                className="text-sm text-orange-600 hover:underline"
+                onClick={() => {
+                  setIsRegisterMode(!isRegisterMode);
+                  setLocalError('');
+                  clearError();
+                }}
+              >
+                {isRegisterMode
+                  ? 'Already have an account? Login'
+                  : "Don't have an account? Register"}
+              </button>
+            </div>
           </TabsContent>
         </Tabs>
       </DialogContent>

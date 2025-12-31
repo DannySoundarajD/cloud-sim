@@ -1,0 +1,363 @@
+"""
+AWS EC2 Service Layer for CloudSim.
+
+Provides abstraction over Boto3 for EC2 operations.
+Uses credentials from ~/.aws/credentials (configured via aws configure).
+
+DESIGN DECISIONS:
+-----------------
+1. Uses default credential chain - reads from ~/.aws/credentials
+2. Region configurable via environment variable or default
+3. Returns typed dictionaries for consistency
+"""
+
+import boto3
+from botocore.exceptions import ClientError
+from typing import Optional
+import os
+
+# Get region from environment or default to us-east-1
+AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+
+# Initialize EC2 client
+ec2 = boto3.client("ec2", region_name=AWS_REGION)
+ec2_resource = boto3.resource("ec2", region_name=AWS_REGION)
+
+
+def list_instances() -> list[dict]:
+    """
+    List all EC2 instances in the configured region.
+    Returns simplified instance data.
+    """
+    try:
+        response = ec2.describe_instances()
+        instances = []
+        
+        for reservation in response.get("Reservations", []):
+            for instance in reservation.get("Instances", []):
+                # Get instance name from tags
+                name = ""
+                for tag in instance.get("Tags", []):
+                    if tag["Key"] == "Name":
+                        name = tag["Value"]
+                        break
+                
+                instances.append({
+                    "instance_id": instance["InstanceId"],
+                    "name": name,
+                    "instance_type": instance["InstanceType"],
+                    "state": instance["State"]["Name"],
+                    "public_ip": instance.get("PublicIpAddress"),
+                    "private_ip": instance.get("PrivateIpAddress"),
+                    "launch_time": instance.get("LaunchTime").isoformat() if instance.get("LaunchTime") else None,
+                    "availability_zone": instance["Placement"]["AvailabilityZone"],
+                })
+        
+        return instances
+    except ClientError as e:
+        raise Exception(f"Failed to list instances: {e}")
+
+
+def get_instance(instance_id: str) -> Optional[dict]:
+    """Get details for a specific instance."""
+    try:
+        response = ec2.describe_instances(InstanceIds=[instance_id])
+        for reservation in response.get("Reservations", []):
+            for instance in reservation.get("Instances", []):
+                name = ""
+                for tag in instance.get("Tags", []):
+                    if tag["Key"] == "Name":
+                        name = tag["Value"]
+                        break
+                
+                return {
+                    "instance_id": instance["InstanceId"],
+                    "name": name,
+                    "instance_type": instance["InstanceType"],
+                    "state": instance["State"]["Name"],
+                    "public_ip": instance.get("PublicIpAddress"),
+                    "private_ip": instance.get("PrivateIpAddress"),
+                    "launch_time": instance.get("LaunchTime").isoformat() if instance.get("LaunchTime") else None,
+                    "availability_zone": instance["Placement"]["AvailabilityZone"],
+                }
+        return None
+    except ClientError as e:
+        raise Exception(f"Failed to get instance {instance_id}: {e}")
+
+
+def start_instance(instance_id: str) -> dict:
+    """Start a stopped EC2 instance."""
+    try:
+        ec2.start_instances(InstanceIds=[instance_id])
+        return {"message": f"Starting instance {instance_id}", "instance_id": instance_id}
+    except ClientError as e:
+        raise Exception(f"Failed to start instance: {e}")
+
+
+def stop_instance(instance_id: str) -> dict:
+    """Stop a running EC2 instance."""
+    try:
+        ec2.stop_instances(InstanceIds=[instance_id])
+        return {"message": f"Stopping instance {instance_id}", "instance_id": instance_id}
+    except ClientError as e:
+        raise Exception(f"Failed to stop instance: {e}")
+
+
+def reboot_instance(instance_id: str) -> dict:
+    """Reboot an EC2 instance."""
+    try:
+        ec2.reboot_instances(InstanceIds=[instance_id])
+        return {"message": f"Rebooting instance {instance_id}", "instance_id": instance_id}
+    except ClientError as e:
+        raise Exception(f"Failed to reboot instance: {e}")
+
+
+def terminate_instance(instance_id: str) -> dict:
+    """Terminate an EC2 instance."""
+    try:
+        ec2.terminate_instances(InstanceIds=[instance_id])
+        return {"message": f"Terminating instance {instance_id}", "instance_id": instance_id}
+    except ClientError as e:
+        raise Exception(f"Failed to terminate instance: {e}")
+
+
+def create_instance(
+    name: str,
+    instance_type: str = "t2.micro",
+    image_id: str = None,
+) -> dict:
+    """
+    Create a new EC2 instance.
+    
+    Args:
+        name: Name tag for the instance
+        instance_type: EC2 instance type (default: t2.micro - free tier)
+        image_id: AMI ID (defaults to Amazon Linux 2023 in us-east-1)
+    """
+    # Default to Amazon Linux 2023 AMI in us-east-1
+    if not image_id:
+        # Get latest Amazon Linux 2023 AMI
+        response = ec2.describe_images(
+            Owners=["amazon"],
+            Filters=[
+                {"Name": "name", "Values": ["al2023-ami-*-x86_64"]},
+                {"Name": "state", "Values": ["available"]},
+            ],
+        )
+        images = sorted(response["Images"], key=lambda x: x["CreationDate"], reverse=True)
+        if images:
+            image_id = images[0]["ImageId"]
+        else:
+            raise Exception("No suitable AMI found")
+    
+    try:
+        response = ec2_resource.create_instances(
+            ImageId=image_id,
+            InstanceType=instance_type,
+            MinCount=1,
+            MaxCount=1,
+            TagSpecifications=[
+                {
+                    "ResourceType": "instance",
+                    "Tags": [{"Key": "Name", "Value": name}],
+                }
+            ],
+        )
+        
+        instance = response[0]
+        return {
+            "message": f"Created instance {instance.id}",
+            "instance_id": instance.id,
+            "name": name,
+            "instance_type": instance_type,
+        }
+    except ClientError as e:
+        raise Exception(f"Failed to create instance: {e}")
+
+
+def get_available_instance_types() -> list[str]:
+    """Return list of allowed instance types for CloudSim."""
+    return [
+        "t2.micro",    # Free tier
+        "t2.small",
+        "t2.medium",
+        "t3.micro",
+        "t3.small",
+        "t3.medium",
+    ]
+
+
+# ============================================================================
+# CLOUDWATCH METRICS
+# ============================================================================
+cloudwatch = boto3.client("cloudwatch", region_name=AWS_REGION)
+
+
+def get_instance_metrics(instance_id: str, period_minutes: int = 60) -> dict:
+    """
+    Get CloudWatch metrics for an EC2 instance.
+    
+    Args:
+        instance_id: EC2 instance ID
+        period_minutes: How far back to fetch metrics (default 60 min)
+    
+    Returns:
+        Dict with cpu_utilization, network_in, network_out data points
+    """
+    from datetime import datetime, timedelta
+    
+    end_time = datetime.utcnow()
+    start_time = end_time - timedelta(minutes=period_minutes)
+    
+    def get_metric(metric_name: str, unit: str = "Percent") -> list:
+        try:
+            response = cloudwatch.get_metric_statistics(
+                Namespace="AWS/EC2",
+                MetricName=metric_name,
+                Dimensions=[{"Name": "InstanceId", "Value": instance_id}],
+                StartTime=start_time,
+                EndTime=end_time,
+                Period=300,  # 5-minute intervals
+                Statistics=["Average"],
+                Unit=unit,
+            )
+            # Sort by timestamp and return values
+            datapoints = sorted(response.get("Datapoints", []), key=lambda x: x["Timestamp"])
+            return [
+                {
+                    "timestamp": dp["Timestamp"].isoformat(),
+                    "value": round(dp["Average"], 2),
+                }
+                for dp in datapoints
+            ]
+        except ClientError as e:
+            print(f"Error fetching {metric_name}: {e}")
+            return []
+    
+    return {
+        "instance_id": instance_id,
+        "cpu_utilization": get_metric("CPUUtilization", "Percent"),
+        "network_in": get_metric("NetworkIn", "Bytes"),
+        "network_out": get_metric("NetworkOut", "Bytes"),
+        "disk_read_ops": get_metric("DiskReadOps", "Count"),
+        "disk_write_ops": get_metric("DiskWriteOps", "Count"),
+    }
+
+
+def get_instance_current_metrics(instance_id: str) -> dict:
+    """
+    Get current (latest) metrics for an EC2 instance.
+    Useful for dashboard overview.
+    """
+    metrics = get_instance_metrics(instance_id, period_minutes=15)
+    
+    def get_latest(data: list) -> float:
+        return data[-1]["value"] if data else 0
+    
+    return {
+        "instance_id": instance_id,
+        "cpu_percent": get_latest(metrics["cpu_utilization"]),
+        "network_in_bytes": get_latest(metrics["network_in"]),
+        "network_out_bytes": get_latest(metrics["network_out"]),
+    }
+
+
+# ============================================================================
+# COST EXPLORER
+# ============================================================================
+cost_explorer = boto3.client("ce", region_name="us-east-1")  # CE only available in us-east-1
+
+
+def get_daily_costs(days: int = 7) -> list[dict]:
+    """
+    Get daily cost breakdown for the last N days.
+    Returns list of {date, compute, storage, network, total}.
+    """
+    from datetime import datetime, timedelta
+    
+    end_date = datetime.utcnow().date()
+    start_date = end_date - timedelta(days=days)
+    
+    try:
+        response = cost_explorer.get_cost_and_usage(
+            TimePeriod={
+                "Start": start_date.isoformat(),
+                "End": end_date.isoformat(),
+            },
+            Granularity="DAILY",
+            Metrics=["BlendedCost"],
+            GroupBy=[
+                {"Type": "DIMENSION", "Key": "SERVICE"}
+            ],
+        )
+        
+        daily_costs = []
+        for result in response.get("ResultsByTime", []):
+            date = result["TimePeriod"]["Start"]
+            day_total = 0.0
+            compute = 0.0
+            storage = 0.0
+            network = 0.0
+            
+            for group in result.get("Groups", []):
+                service = group["Keys"][0]
+                amount = float(group["Metrics"]["BlendedCost"]["Amount"])
+                day_total += amount
+                
+                if "EC2" in service:
+                    compute += amount
+                elif "S3" in service or "EBS" in service:
+                    storage += amount
+                elif "Data Transfer" in service or "CloudFront" in service:
+                    network += amount
+            
+            daily_costs.append({
+                "date": date,
+                "compute": round(compute, 2),
+                "storage": round(storage, 2),
+                "network": round(network, 2),
+                "total": round(day_total, 2),
+            })
+        
+        return daily_costs
+    except ClientError as e:
+        print(f"Error fetching costs: {e}")
+        return []
+
+
+def get_monthly_summary() -> dict:
+    """
+    Get current month's cost summary.
+    """
+    from datetime import datetime
+    
+    today = datetime.utcnow().date()
+    month_start = today.replace(day=1)
+    
+    try:
+        response = cost_explorer.get_cost_and_usage(
+            TimePeriod={
+                "Start": month_start.isoformat(),
+                "End": today.isoformat(),
+            },
+            Granularity="MONTHLY",
+            Metrics=["BlendedCost"],
+        )
+        
+        total = 0.0
+        for result in response.get("ResultsByTime", []):
+            total = float(result["Total"]["BlendedCost"]["Amount"])
+        
+        # Calculate projected monthly cost
+        days_elapsed = (today - month_start).days or 1
+        days_in_month = 30  # Approximate
+        projected = (total / days_elapsed) * days_in_month
+        
+        return {
+            "month_to_date": round(total, 2),
+            "projected_monthly": round(projected, 2),
+            "days_elapsed": days_elapsed,
+        }
+    except ClientError as e:
+        print(f"Error fetching monthly costs: {e}")
+        return {"month_to_date": 0, "projected_monthly": 0, "days_elapsed": 0}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Button } from './ui/button';
@@ -9,12 +9,14 @@ import { Card } from './ui/card';
 import { Separator } from './ui/separator';
 import { Badge } from './ui/badge';
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { useUser } from '../contexts/UserContext';
 import type { UserRole } from '../contexts/UserContext';
-import { Shield, Download, Users, Database, Network, Bell, Code, BarChart3, Lock, Activity, DollarSign, CreditCard, TrendingUp } from 'lucide-react';
+import { Shield, Download, Database, Network, Bell, Code, BarChart3, Lock, Activity, DollarSign, CreditCard, TrendingUp, Plus, Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Slider } from './ui/slider';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
+import * as adminApi from '../api/admin';
 
 interface IAMPanelProps {
   open: boolean;
@@ -27,6 +29,68 @@ export function IAMPanel({ open, onOpenChange }: IAMPanelProps) {
   const [deniedAction, setDeniedAction] = useState('');
   const [deniedRequiredRole, setDeniedRequiredRole] = useState<UserRole>(null);
 
+  // User management state
+  const [users, setUsers] = useState<adminApi.AdminUser[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [showAddUserDialog, setShowAddUserDialog] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserRole, setNewUserRole] = useState('User');
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [userError, setUserError] = useState('');
+
+  // Fetch users when panel opens (Admin only)
+  useEffect(() => {
+    if (open && user?.role === 'Admin') {
+      fetchUsers();
+    }
+  }, [open, user?.role]);
+
+  const fetchUsers = async () => {
+    setIsLoadingUsers(true);
+    try {
+      const data = await adminApi.listUsers();
+      setUsers(data);
+    } catch (err) {
+      console.error('Failed to fetch users:', err);
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
+  const handleCreateUser = async () => {
+    setUserError('');
+    setIsCreatingUser(true);
+    try {
+      await adminApi.createUser({
+        email: newUserEmail,
+        password: newUserPassword,
+        role: newUserRole,
+      });
+      setShowAddUserDialog(false);
+      setNewUserEmail('');
+      setNewUserPassword('');
+      setNewUserRole('User');
+      fetchUsers();
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        || 'Failed to create user';
+      setUserError(message);
+    } finally {
+      setIsCreatingUser(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId: number, email: string) => {
+    if (!confirm(`Are you sure you want to delete ${email}?`)) return;
+    try {
+      await adminApi.deleteUser(userId);
+      fetchUsers();
+    } catch (err) {
+      console.error('Failed to delete user:', err);
+    }
+  };
+
   const checkAccess = (requiredRole: UserRole, action: string) => {
     if (!hasRole(requiredRole)) {
       setDeniedAction(action);
@@ -36,13 +100,6 @@ export function IAMPanel({ open, onOpenChange }: IAMPanelProps) {
     }
     return true;
   };
-
-  // Mock data for users
-  const [users] = useState([
-    { id: 1, username: 'john.doe', role: 'Developer', status: 'Active' },
-    { id: 2, username: 'jane.smith', role: 'DevOps Engineer', status: 'Active' },
-    { id: 3, username: 'admin.user', role: 'Admin', status: 'Active' },
-  ]);
 
   // Mock audit logs
   const auditLogs = [
@@ -234,65 +291,125 @@ export function IAMPanel({ open, onOpenChange }: IAMPanelProps) {
                       <h3 className="font-medium">User Management</h3>
                       <Button
                         size="sm"
-                        onClick={() => {
-                          if (checkAccess('Admin', 'add user')) {
-                            alert('Opening add user dialog...');
-                          }
-                        }}
+                        onClick={() => setShowAddUserDialog(true)}
                       >
-                        <Users className="h-4 w-4 mr-2" />
+                        <Plus className="h-4 w-4 mr-2" />
                         Add User
                       </Button>
                     </div>
 
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Username</TableHead>
-                          <TableHead>Role</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {users.map((u) => (
-                          <TableRow key={u.id}>
-                            <TableCell>{u.username}</TableCell>
-                            <TableCell>{u.role}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{u.status}</Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex gap-2">
+                    {isLoadingUsers ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                      </div>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Email</TableHead>
+                            <TableHead>Role</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {users.map((u) => (
+                            <TableRow key={u.id}>
+                              <TableCell>{u.email}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline">{u.role}</Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={u.is_active ? "default" : "secondary"}>
+                                  {u.is_active ? 'Active' : 'Inactive'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
                                 <Button
                                   size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    if (checkAccess('Admin', 'edit user')) {
-                                      alert(`Editing user: ${u.username}`);
-                                    }
-                                  }}
-                                >
-                                  Edit
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    if (checkAccess('Admin', 'delete user')) {
-                                      alert(`Deleting user: ${u.username}`);
-                                    }
-                                  }}
+                                  variant="destructive"
+                                  onClick={() => handleDeleteUser(u.id, u.email)}
                                 >
                                   Delete
                                 </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
                   </Card>
+
+                  {/* Add User Dialog */}
+                  <Dialog open={showAddUserDialog} onOpenChange={setShowAddUserDialog}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add New User</DialogTitle>
+                        <DialogDescription>
+                          Create a new user account with specified role.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        {userError && (
+                          <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-600">
+                            {userError}
+                          </div>
+                        )}
+                        <div className="space-y-2">
+                          <Label htmlFor="new-email">Email</Label>
+                          <Input
+                            id="new-email"
+                            type="email"
+                            placeholder="user@example.com"
+                            value={newUserEmail}
+                            onChange={(e) => setNewUserEmail(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="new-password">Password</Label>
+                          <Input
+                            id="new-password"
+                            type="password"
+                            placeholder="Enter password"
+                            value={newUserPassword}
+                            onChange={(e) => setNewUserPassword(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="new-role">Role</Label>
+                          <Select value={newUserRole} onValueChange={setNewUserRole}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="User">User</SelectItem>
+                              <SelectItem value="Developer">Developer</SelectItem>
+                              <SelectItem value="DevOps Engineer">DevOps Engineer</SelectItem>
+                              <SelectItem value="Admin">Admin</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowAddUserDialog(false)}>
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleCreateUser}
+                          disabled={!newUserEmail || !newUserPassword || isCreatingUser}
+                        >
+                          {isCreatingUser ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Creating...
+                            </>
+                          ) : (
+                            'Create User'
+                          )}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
 
                   <Card className="p-4">
                     <h3 className="font-medium mb-4">Audit Trail</h3>
@@ -851,7 +968,7 @@ export function IAMPanel({ open, onOpenChange }: IAMPanelProps) {
                   <h3 className="font-medium">Cost & Billing</h3>
                   <DollarSign className="h-5 w-5 text-green-600" />
                 </div>
-                
+
                 <div className="space-y-4">
                   {/* Current Month Summary */}
                   <div className="grid grid-cols-3 gap-3">

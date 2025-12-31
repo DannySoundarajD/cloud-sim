@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Progress } from './ui/progress';
 import { Server, Play, Square, RotateCw, Trash2, AlertTriangle, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
-import { fetchInstances, deleteInstance, type Instance } from '../api/instances';
+import { fetchInstances, deleteInstance, startInstance, stopInstance, rebootInstance, type Instance } from '../api/instances';
 import { toast } from 'sonner';
 
 const alarms = [
@@ -50,10 +50,43 @@ export function DashboardPage({ onInstanceClick }: DashboardPageProps) {
     try {
       await deleteInstance(id);
       toast.success('Instance terminated successfully');
-      loadData(); // Refresh list
+      loadData();
     } catch (error) {
       console.error('Failed to delete instance:', error);
       toast.error('Failed to terminate instance');
+    }
+  };
+
+  const handleStart = async (id: string) => {
+    try {
+      await startInstance(id);
+      toast.success('Starting instance...');
+      loadData();
+    } catch (error) {
+      console.error('Failed to start instance:', error);
+      toast.error('Failed to start instance');
+    }
+  };
+
+  const handleStop = async (id: string) => {
+    try {
+      await stopInstance(id);
+      toast.success('Stopping instance...');
+      loadData();
+    } catch (error) {
+      console.error('Failed to stop instance:', error);
+      toast.error('Failed to stop instance');
+    }
+  };
+
+  const handleReboot = async (id: string) => {
+    try {
+      await rebootInstance(id);
+      toast.success('Rebooting instance...');
+      loadData();
+    } catch (error) {
+      console.error('Failed to reboot instance:', error);
+      toast.error('Failed to reboot instance');
     }
   };
 
@@ -190,15 +223,15 @@ export function DashboardPage({ onInstanceClick }: DashboardPageProps) {
                   <TableCell>
                     <div className="flex gap-1">
                       {instance.state === 'stopped' ? (
-                        <Button variant="ghost" size="sm" title="Start">
+                        <Button variant="ghost" size="sm" title="Start" onClick={() => handleStart(instance.id)}>
                           <Play className="h-4 w-4 text-green-600" />
                         </Button>
                       ) : (
                         <>
-                          <Button variant="ghost" size="sm" title="Stop">
+                          <Button variant="ghost" size="sm" title="Stop" onClick={() => handleStop(instance.id)}>
                             <Square className="h-4 w-4 text-gray-600" />
                           </Button>
-                          <Button variant="ghost" size="sm" title="Reboot">
+                          <Button variant="ghost" size="sm" title="Reboot" onClick={() => handleReboot(instance.id)}>
                             <RotateCw className="h-4 w-4 text-blue-600" />
                           </Button>
                         </>
