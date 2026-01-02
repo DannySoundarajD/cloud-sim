@@ -1,35 +1,112 @@
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "./ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "./ui/table";
-import {
-  Play,
-  Square,
-  RotateCw,
-  Trash2,
-  Copy,
-  ExternalLink,
-  Settings,
-} from "lucide-react";
-import { useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
+import { Play, Square, RotateCw, Trash2, Copy, ExternalLink, Settings, Loader2, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
 import { ScalingConfigDialog } from "./ScalingConfigDialog";
+import { getInstance, startInstance, stopInstance, rebootInstance, terminateInstance, type EC2InstanceDetails } from "../api/ec2";
+import { toast } from "sonner";
 
-export function InstanceDetailsPage() {
-  const [isConfigDialogOpen, setIsConfigDialogOpen] =
-    useState(false);
+interface InstanceDetailsPageProps {
+  instanceId?: string | null;
+}
+
+export function InstanceDetailsPage({ instanceId }: InstanceDetailsPageProps) {
+  const [instance, setInstance] = useState<EC2InstanceDetails | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (instanceId) {
+      fetchInstanceDetails(instanceId);
+    }
+  }, [instanceId]);
+
+  const fetchInstanceDetails = async (id: string) => {
+    setLoading(true);
+    try {
+      const data = await getInstance(id);
+      setInstance(data);
+    } catch (error) {
+      console.error("Failed to fetch instance details:", error);
+      toast.error("Failed to load instance details");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStart = async () => {
+    if (!instance) return;
+    try {
+      await startInstance(instance.instance_id);
+      toast.success("Instance starting...");
+      fetchInstanceDetails(instance.instance_id);
+    } catch (e) {
+      toast.error("Failed to start instance");
+    }
+  };
+
+  const handleStop = async () => {
+    if (!instance) return;
+    try {
+      await stopInstance(instance.instance_id);
+      toast.success("Instance stopping...");
+      fetchInstanceDetails(instance.instance_id);
+    } catch (e) {
+      toast.error("Failed to stop instance");
+    }
+  };
+
+  const handleReboot = async () => {
+    if (!instance) return;
+    try {
+      await rebootInstance(instance.instance_id);
+      toast.success("Instance rebooting...");
+      fetchInstanceDetails(instance.instance_id);
+    } catch (e) {
+      toast.error("Failed to reboot instance");
+    }
+  };
+
+  const handleTerminate = async () => {
+    if (!instance) return;
+    if (confirm("Are you sure you want to terminate this instance? This cannot be undone.")) {
+      try {
+        await terminateInstance(instance.instance_id);
+        toast.success("Instance terminating...");
+        fetchInstanceDetails(instance.instance_id);
+      } catch (e) {
+        toast.error("Failed to terminate instance");
+      }
+    }
+  };
+
+  if (!instanceId) {
+    return (
+      <div className="flex h-[400px] items-center justify-center flex-col gap-4">
+        <AlertCircle className="h-12 w-12 text-gray-400" />
+        <p className="text-gray-600">Select an instance from the Dashboard to view details.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      </div>
+    );
+  }
+
+  if (!instance) {
+    return (
+      <div className="flex h-[400px] items-center justify-center">
+        <p className="text-gray-600">Instance not found.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -37,12 +114,12 @@ export function InstanceDetailsPage() {
       <div className="flex justify-between items-start">
         <div>
           <div className="flex items-center gap-3">
-            <h1>web-server-01</h1>
-            <Badge className="bg-green-600">Running</Badge>
+            <h1>{instance.name || instance.instance_id}</h1>
+            <Badge className={instance.state === 'running' ? 'bg-green-600' : 'bg-gray-500'}>
+              {instance.state}
+            </Badge>
           </div>
-          <p className="text-sm text-gray-600 mt-1">
-            i-0a1b2c3d4e5f6g7h8
-          </p>
+          <p className="text-sm text-gray-600 mt-1">{instance.instance_id}</p>
         </div>
 
         <div className="flex gap-2">
@@ -55,19 +132,19 @@ export function InstanceDetailsPage() {
             <Settings className="h-4 w-4 mr-2" />
             Configure
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleStart} disabled={instance.state === 'running'}>
             <Play className="h-4 w-4 mr-2" />
             Start
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleStop} disabled={instance.state !== 'running'}>
             <Square className="h-4 w-4 mr-2" />
             Stop
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleReboot} disabled={instance.state !== 'running'}>
             <RotateCw className="h-4 w-4 mr-2" />
             Reboot
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleTerminate} className="text-red-600 hover:text-red-700">
             <Trash2 className="h-4 w-4 mr-2" />
             Terminate
           </Button>
@@ -78,30 +155,32 @@ export function InstanceDetailsPage() {
       <div className="grid grid-cols-4 gap-4">
         <Card className="p-4">
           <p className="text-sm text-gray-600">Instance Type</p>
-          <p className="mt-1">t2.micro</p>
+          <p className="mt-1">{instance.instance_type}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-sm text-gray-600">
-            Availability Zone
-          </p>
-          <p className="mt-1">us-east-1a</p>
+          <p className="text-sm text-gray-600">Availability Zone</p>
+          <p className="mt-1">{instance.availability_zone}</p>
         </Card>
         <Card className="p-4">
           <p className="text-sm text-gray-600">Public IPv4</p>
           <div className="flex items-center gap-2 mt-1">
-            <p>54.123.45.67</p>
-            <button className="text-gray-400 hover:text-gray-600">
-              <Copy className="h-3 w-3" />
-            </button>
+            <p>{instance.public_ip || '-'}</p>
+            {instance.public_ip && (
+              <button className="text-gray-400 hover:text-gray-600" onClick={() => navigator.clipboard.writeText(instance.public_ip!)}>
+                <Copy className="h-3 w-3" />
+              </button>
+            )}
           </div>
         </Card>
         <Card className="p-4">
           <p className="text-sm text-gray-600">Private IPv4</p>
           <div className="flex items-center gap-2 mt-1">
-            <p>172.31.16.22</p>
-            <button className="text-gray-400 hover:text-gray-600">
-              <Copy className="h-3 w-3" />
-            </button>
+            <p>{instance.private_ip || '-'}</p>
+            {instance.private_ip && (
+              <button className="text-gray-400 hover:text-gray-600" onClick={() => navigator.clipboard.writeText(instance.private_ip!)}>
+                <Copy className="h-3 w-3" />
+              </button>
+            )}
           </div>
         </Card>
       </div>
@@ -111,9 +190,7 @@ export function InstanceDetailsPage() {
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
-          <TabsTrigger value="networking">
-            Networking
-          </TabsTrigger>
+          <TabsTrigger value="networking">Networking</TabsTrigger>
           <TabsTrigger value="storage">Storage</TabsTrigger>
           <TabsTrigger value="tags">Tags</TabsTrigger>
         </TabsList>
@@ -121,88 +198,46 @@ export function InstanceDetailsPage() {
         <TabsContent value="details" className="space-y-4">
           <Card className="p-6">
             <h3 className="mb-4">Instance Details</h3>
-
             <div className="grid grid-cols-2 gap-x-8 gap-y-4">
               <div>
-                <p className="text-sm text-gray-600">
-                  Instance ID
-                </p>
-                <p className="mt-1">i-0a1b2c3d4e5f6g7h8</p>
+                <p className="text-sm text-gray-600">Instance ID</p>
+                <p className="mt-1">{instance.instance_id}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">
-                  Instance State
-                </p>
+                <p className="text-sm text-gray-600">Instance State</p>
                 <div className="mt-1">
-                  <Badge className="bg-green-600">
-                    Running
+                  <Badge className={instance.state === 'running' ? 'bg-green-600' : 'bg-gray-500'}>
+                    {instance.state}
                   </Badge>
                 </div>
               </div>
               <div>
-                <p className="text-sm text-gray-600">
-                  Instance Type
-                </p>
-                <p className="mt-1">t2.micro</p>
+                <p className="text-sm text-gray-600">Instance Type</p>
+                <p className="mt-1">{instance.instance_type}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600">AMI ID</p>
-                <p className="mt-1">ami-0c55b159cbfafe1f0</p>
+                <p className="mt-1">{instance.ami_id}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">
-                  AMI Name
-                </p>
-                <p className="mt-1">Amazon Linux 2023 AMI</p>
+                <p className="text-sm text-gray-600">Platform</p>
+                <p className="mt-1">{instance.platform}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">
-                  Platform
-                </p>
-                <p className="mt-1">Linux/UNIX</p>
+                <p className="text-sm text-gray-600">Launch Time</p>
+                <p className="mt-1">{instance.launch_time ? new Date(instance.launch_time).toLocaleString() : '-'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">
-                  Launch Time
-                </p>
-                <p className="mt-1">2025-11-13 08:30:45 UTC</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Uptime</p>
-                <p className="mt-1">5 days, 14 hours</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">
-                  Monitoring
-                </p>
-                <p className="mt-1">Basic (5 min)</p>
+                <p className="text-sm text-gray-600">Monitoring</p>
+                <p className="mt-1">{instance.monitoring}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600">Tenancy</p>
-                <p className="mt-1">Default</p>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-6">
-            <h3 className="mb-4">CPU & Memory</h3>
-
-            <div className="grid grid-cols-3 gap-6">
-              <div>
-                <p className="text-sm text-gray-600">vCPUs</p>
-                <p className="mt-1">1</p>
+                <p className="mt-1">{instance.tenancy}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">
-                  Memory (GiB)
-                </p>
-                <p className="mt-1">1.0</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">
-                  CPU Credits
-                </p>
-                <p className="mt-1">T2 Unlimited Disabled</p>
+                <p className="text-sm text-gray-600">Key Pair Name</p>
+                <p className="mt-1">{instance.key_name || '-'}</p>
               </div>
             </div>
           </Card>
@@ -211,37 +246,30 @@ export function InstanceDetailsPage() {
         <TabsContent value="security" className="space-y-4">
           <Card className="p-6">
             <h3 className="mb-4">Security Groups</h3>
-
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Security Group ID</TableHead>
-                  <TableHead>Description</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow>
-                  <TableCell>default</TableCell>
-                  <TableCell>sg-0a1b2c3d4e5f6g7h</TableCell>
-                  <TableCell>Default security group</TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="sm">
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>web-server-sg</TableCell>
-                  <TableCell>sg-1b2c3d4e5f6g7h8i</TableCell>
-                  <TableCell>Allow HTTP and HTTPS</TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="sm">
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
+                {instance.security_groups.length > 0 ? instance.security_groups.map((sg) => (
+                  <TableRow key={sg.GroupId}>
+                    <TableCell>{sg.GroupName}</TableCell>
+                    <TableCell>{sg.GroupId}</TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="sm">
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center text-gray-500">No security groups attached</TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </Card>
@@ -249,100 +277,31 @@ export function InstanceDetailsPage() {
           <Card className="p-6">
             <h3 className="mb-4">IAM Role</h3>
             <div className="space-y-2">
-              <p className="text-sm text-gray-600">
-                IAM Instance Profile
-              </p>
-              <p>EC2-S3-Read-Only-Role</p>
-            </div>
-          </Card>
-
-          <Card className="p-6">
-            <h3 className="mb-4">Key Pair</h3>
-            <div className="space-y-2">
-              <p className="text-sm text-gray-600">
-                Key Pair Name
-              </p>
-              <p>my-ec2-keypair</p>
+              <p className="text-sm text-gray-600">IAM Instance Profile ARN</p>
+              <p>{instance.iam_role || 'None'}</p>
             </div>
           </Card>
         </TabsContent>
 
         <TabsContent value="networking" className="space-y-4">
           <Card className="p-6">
-            <h3 className="mb-4">Network Interfaces</h3>
-
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Interface ID</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Private IP</TableHead>
-                  <TableHead>Public IP</TableHead>
-                  <TableHead>Subnet</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow>
-                  <TableCell>eni-0a1b2c3d4e5f</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">Primary</Badge>
-                  </TableCell>
-                  <TableCell>172.31.16.22</TableCell>
-                  <TableCell>54.123.45.67</TableCell>
-                  <TableCell>subnet-0a1b2c3d</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </Card>
-
-          <Card className="p-6">
-            <h3 className="mb-4">VPC Details</h3>
-
+            <h3 className="mb-4">Networking Details</h3>
             <div className="grid grid-cols-2 gap-6">
               <div>
                 <p className="text-sm text-gray-600">VPC ID</p>
-                <p className="mt-1">vpc-0a1b2c3d4e5f</p>
+                <p className="mt-1">{instance.vpc_id || '-'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">
-                  Subnet ID
-                </p>
-                <p className="mt-1">subnet-0a1b2c3d</p>
+                <p className="text-sm text-gray-600">Subnet ID</p>
+                <p className="mt-1">{instance.subnet_id || '-'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">
-                  Availability Zone
-                </p>
-                <p className="mt-1">us-east-1a</p>
+                <p className="text-sm text-gray-600">Public DNS (IPv4)</p>
+                <p className="mt-1 break-all">{instance.public_dns || '-'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">
-                  VPC Name
-                </p>
-                <p className="mt-1">default-vpc</p>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-6">
-            <h3 className="mb-4">DNS Settings</h3>
-
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <p className="text-sm text-gray-600">
-                  Public DNS (IPv4)
-                </p>
-                <p className="mt-1">
-                  ec2-54-123-45-67.compute-1.amazonaws.com
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">
-                  Private DNS
-                </p>
-                <p className="mt-1">
-                  ip-172-31-16-22.ec2.internal
-                </p>
+                <p className="text-sm text-gray-600">Private DNS</p>
+                <p className="mt-1 break-all">{instance.private_dns || '-'}</p>
               </div>
             </div>
           </Card>
@@ -350,32 +309,39 @@ export function InstanceDetailsPage() {
 
         <TabsContent value="storage" className="space-y-4">
           <Card className="p-6">
-            <h3 className="mb-4">Block Devices</h3>
-
+            <h3 className="mb-4">Block Devices (EBS Volumes)</h3>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Device Name</TableHead>
                   <TableHead>Volume ID</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Size</TableHead>
+                  <TableHead>Size (GiB)</TableHead>
                   <TableHead>IOPS</TableHead>
-                  <TableHead>Throughput</TableHead>
-                  <TableHead>Delete on Termination</TableHead>
+                  <TableHead>Encrypted</TableHead>
+                  <TableHead>Delete on Term.</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow>
-                  <TableCell>/dev/xvda</TableCell>
-                  <TableCell>vol-0a1b2c3d4e5f6g7h</TableCell>
-                  <TableCell>gp3</TableCell>
-                  <TableCell>8 GiB</TableCell>
-                  <TableCell>3000</TableCell>
-                  <TableCell>125 MB/s</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">Yes</Badge>
-                  </TableCell>
-                </TableRow>
+                {instance.block_devices.length > 0 ? instance.block_devices.map((bd) => (
+                  <TableRow key={bd.volume_id}>
+                    <TableCell>{bd.device_name}</TableCell>
+                    <TableCell>{bd.volume_id}</TableCell>
+                    <TableCell>{bd.volume_type}</TableCell>
+                    <TableCell>{bd.size}</TableCell>
+                    <TableCell>{bd.iops || '-'}</TableCell>
+                    <TableCell>
+                      <Badge variant={bd.encrypted ? "outline" : "secondary"}>{bd.encrypted ? 'Yes' : 'No'}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={bd.delete_on_termination ? "outline" : "secondary"}>{bd.delete_on_termination ? 'Yes' : 'No'}</Badge>
+                    </TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-gray-500">No block devices found</TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </Card>
@@ -385,9 +351,7 @@ export function InstanceDetailsPage() {
           <Card className="p-6">
             <div className="flex justify-between items-center mb-4">
               <h3>Resource Tags</h3>
-              <Button variant="outline" size="sm">
-                Add Tag
-              </Button>
+              {/* Add Tag functionality could be implemented here */}
             </div>
 
             <Table>
@@ -395,57 +359,29 @@ export function InstanceDetailsPage() {
                 <TableRow>
                   <TableHead>Key</TableHead>
                   <TableHead>Value</TableHead>
-                  <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>web-server-01</TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="sm">
-                      Edit
-                    </Button>
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>Environment</TableCell>
-                  <TableCell>Production</TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="sm">
-                      Edit
-                    </Button>
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>Owner</TableCell>
-                  <TableCell>DevOps Team</TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="sm">
-                      Edit
-                    </Button>
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>Project</TableCell>
-                  <TableCell>WebApp-2025</TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="sm">
-                      Edit
-                    </Button>
-                  </TableCell>
-                </TableRow>
+                {instance.tags.length > 0 ? instance.tags.map((tag) => (
+                  <TableRow key={tag.Key}>
+                    <TableCell className="font-medium">{tag.Key}</TableCell>
+                    <TableCell>{tag.Value}</TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={2} className="text-center text-gray-500">No tags</TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </Card>
         </TabsContent>
       </Tabs>
 
-      {/* Scaling Config Dialog */}
       <ScalingConfigDialog
         open={isConfigDialogOpen}
         onOpenChange={setIsConfigDialogOpen}
-        instanceName="web-server-01"
+        instanceName={instance.name}
       />
     </div>
   );

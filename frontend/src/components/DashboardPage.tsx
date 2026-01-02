@@ -22,7 +22,7 @@ const zones = [
 ];
 
 interface DashboardPageProps {
-  onInstanceClick: () => void;
+  onInstanceClick: (id: string) => void;
 }
 
 export function DashboardPage({ onInstanceClick }: DashboardPageProps) {
@@ -196,7 +196,7 @@ export function DashboardPage({ onInstanceClick }: DashboardPageProps) {
                 <TableRow key={instance.id}>
                   <TableCell>
                     <button
-                      onClick={onInstanceClick}
+                      onClick={() => onInstanceClick(instance.id)}
                       className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
                     >
                       {instance.name}

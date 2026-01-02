@@ -35,11 +35,48 @@ export async function listInstances(): Promise<EC2Instance[]> {
     return response.data;
 }
 
+export interface Tag {
+    Key: string;
+    Value: string;
+}
+
+export interface SecurityGroup {
+    GroupId: string;
+    GroupName: string;
+}
+
+export interface BlockDevice {
+    device_name: string;
+    volume_id: string;
+    size: number;
+    volume_type: string;
+    iops?: number;
+    throughput?: number;
+    encrypted: boolean;
+    delete_on_termination: boolean;
+}
+
+export interface EC2InstanceDetails extends EC2Instance {
+    key_name: string | null;
+    platform: string;
+    tenancy: string;
+    ami_id: string;
+    monitoring: string;
+    public_dns: string | null;
+    private_dns: string | null;
+    vpc_id: string | null;
+    subnet_id: string | null;
+    security_groups: SecurityGroup[];
+    block_devices: BlockDevice[];
+    tags: Tag[];
+    iam_role: string | null;
+}
+
 /**
- * Get a specific EC2 instance.
+ * Get a specific EC2 instance with full details.
  */
-export async function getInstance(instanceId: string): Promise<EC2Instance> {
-    const response = await api.get<EC2Instance>(`/api/ec2/instances/${instanceId}`);
+export async function getInstance(instanceId: string): Promise<EC2InstanceDetails> {
+    const response = await api.get<EC2InstanceDetails>(`/api/ec2/instances/${instanceId}`);
     return response.data;
 }
 

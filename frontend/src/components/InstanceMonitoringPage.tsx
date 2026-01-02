@@ -6,8 +6,25 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Activity, Download, RefreshCw, DollarSign, AlertCircle, Loader2 } from 'lucide-react';
-import { getInstanceMetrics, getDailyCosts, getCostSummary, type InstanceMetrics, type DailyCost, type CostSummary } from '../api/ec2';
+import { getInstanceMetrics, type InstanceMetrics, type DailyCost, type CostSummary } from '../api/ec2';
 import { fetchInstances, type Instance } from '../api/instances';
+
+// MOCK DATA: Use this to avoid AWS Cost Explorer charges
+const MOCK_DAILY_COSTS: DailyCost[] = [
+  { date: '2025-11-08', compute: 1.5, storage: 0.5, network: 0.2, total: 2.2 },
+  { date: '2025-11-09', compute: 1.8, storage: 0.6, network: 0.3, total: 2.7 },
+  { date: '2025-11-10', compute: 2.0, storage: 0.7, network: 0.4, total: 3.1 },
+  { date: '2025-11-11', compute: 1.9, storage: 0.6, network: 0.3, total: 2.8 },
+  { date: '2025-11-12', compute: 2.1, storage: 0.7, network: 0.5, total: 3.3 },
+  { date: '2025-11-13', compute: 1.7, storage: 0.6, network: 0.3, total: 2.6 },
+  { date: '2025-11-14', compute: 1.6, storage: 0.6, network: 0.2, total: 2.4 },
+];
+
+const MOCK_COST_SUMMARY: CostSummary = {
+  month_to_date: 19.1,
+  projected_monthly: 45.5,
+  days_elapsed: 14,
+};
 
 // Mock log entries (requires CloudWatch Logs API)
 const logEntries = [
@@ -83,12 +100,20 @@ export function InstanceMonitoringPage() {
     const loadCosts = async () => {
       setCostsLoading(true);
       try {
+        /*
+        // Disable real API calls to save costs
         const [dailyCosts, summary] = await Promise.all([
           getDailyCosts(7),
           getCostSummary()
         ]);
         setCostData(dailyCosts);
         setCostSummary(summary);
+        */
+
+        // Use mock data
+        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
+        setCostData(MOCK_DAILY_COSTS);
+        setCostSummary(MOCK_COST_SUMMARY);
       } catch (err) {
         console.error('Failed to fetch costs:', err);
       } finally {
@@ -142,12 +167,20 @@ export function InstanceMonitoringPage() {
     }
     setCostsLoading(true);
     try {
+      /*
+      // Disable real API calls to save costs
       const [dailyCosts, summary] = await Promise.all([
         getDailyCosts(7),
         getCostSummary()
       ]);
       setCostData(dailyCosts);
       setCostSummary(summary);
+      */
+
+      // Use mock data
+      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
+      setCostData(MOCK_DAILY_COSTS);
+      setCostSummary(MOCK_COST_SUMMARY);
     } catch (err) {
       console.error('Failed to refresh costs:', err);
     } finally {

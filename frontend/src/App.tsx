@@ -17,9 +17,13 @@ function AppContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isIAMPanelOpen, setIsIAMPanelOpen] = useState(false);
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const { user, login, logout } = useUser();
 
-  const handleInstanceClick = () => setActiveTab("details");
+  const handleInstanceClick = (id: string) => {
+    setSelectedInstanceId(id);
+    setActiveTab("details");
+  };
   const handleLogin = (username: string, role: UserRole) => login(username, role);
   const handleLogout = () => { logout(); setActiveTab("dashboard"); };
 
@@ -64,7 +68,7 @@ function AppContent() {
           </TabsContent>
           <TabsContent value="details">
             <div className="bg-white rounded-lg border p-8">
-              <InstanceDetailsPage />
+              <InstanceDetailsPage instanceId={selectedInstanceId} />
             </div>
           </TabsContent>
           <TabsContent value="monitoring">

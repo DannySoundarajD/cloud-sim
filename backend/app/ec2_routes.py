@@ -28,6 +28,27 @@ router = APIRouter(prefix="/api/ec2", tags=["EC2"])
 # ============================================================================
 # SCHEMAS
 # ============================================================================
+class Tag(BaseModel):
+    Key: str
+    Value: str
+
+
+class SecurityGroup(BaseModel):
+    GroupId: str
+    GroupName: str
+
+
+class BlockDevice(BaseModel):
+    device_name: str
+    volume_id: str
+    size: int
+    volume_type: str
+    iops: Optional[int] = 0
+    throughput: Optional[int] = 0
+    encrypted: bool
+    delete_on_termination: bool
+
+
 class InstanceResponse(BaseModel):
     instance_id: str
     name: str
@@ -37,6 +58,28 @@ class InstanceResponse(BaseModel):
     private_ip: Optional[str]
     launch_time: Optional[str]
     availability_zone: str
+
+
+class InstanceDetailResponse(InstanceResponse):
+    key_name: Optional[str] = None
+    platform: str
+    tenancy: str
+    ami_id: str
+    monitoring: str
+    
+    # Network
+    public_dns: Optional[str]
+    private_dns: Optional[str]
+    vpc_id: Optional[str]
+    subnet_id: Optional[str]
+    security_groups: list[SecurityGroup] = []
+    
+    # Storage
+    block_devices: list[BlockDevice] = []
+    
+    # Metadata
+    tags: list[Tag] = []
+    iam_role: Optional[str] = None
 
 
 class CreateInstanceRequest(BaseModel):
@@ -107,7 +150,7 @@ async def list_instances(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/instances/{instance_id}", response_model=InstanceResponse)
+@router.get("/instances/{instance_id}", response_model=InstanceDetailResponse)
 async def get_instance(
     instance_id: str,
     current_user: User = Depends(get_current_user)

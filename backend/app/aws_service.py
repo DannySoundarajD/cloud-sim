@@ -59,26 +59,75 @@ def list_instances() -> list[dict]:
 
 
 def get_instance(instance_id: str) -> Optional[dict]:
-    """Get details for a specific instance."""
+    """Get detailed information for a specific instance."""
     try:
         response = ec2.describe_instances(InstanceIds=[instance_id])
         for reservation in response.get("Reservations", []):
             for instance in reservation.get("Instances", []):
+                # Basic info
                 name = ""
-                for tag in instance.get("Tags", []):
+                tags = instance.get("Tags", [])
+                for tag in tags:
                     if tag["Key"] == "Name":
                         name = tag["Value"]
                         break
+                
+                # Fetch Volume Details
+                block_devices = []
+                volume_ids = [bd["Ebs"]["VolumeId"] for bd in instance.get("BlockDeviceMappings", []) if "Ebs" in bd]
+                
+                if volume_ids:
+                    try:
+                        vol_response = ec2.describe_volumes(VolumeIds=volume_ids)
+                        for vol in vol_response.get("Volumes", []):
+                            # Find matching device name
+                            device_name = "N/A"
+                            for bd in instance.get("BlockDeviceMappings", []):
+                                if "Ebs" in bd and bd["Ebs"]["VolumeId"] == vol["VolumeId"]:
+                                    device_name = bd["DeviceName"]
+                                    break
+                                    
+                            block_devices.append({
+                                "device_name": device_name,
+                                "volume_id": vol["VolumeId"],
+                                "size": vol["Size"],
+                                "volume_type": vol["VolumeType"],
+                                "iops": vol.get("Iops", 0),
+                                "throughput": vol.get("Throughput", 0),
+                                "encrypted": vol.get("Encrypted", False),
+                                "delete_on_termination": next((bd["Ebs"]["DeleteOnTermination"] for bd in instance.get("BlockDeviceMappings", []) if "Ebs" in bd and bd["Ebs"]["VolumeId"] == vol["VolumeId"]), False)
+                            })
+                    except ClientError:
+                        pass # Ignore volume errors if permissions missing
                 
                 return {
                     "instance_id": instance["InstanceId"],
                     "name": name,
                     "instance_type": instance["InstanceType"],
                     "state": instance["State"]["Name"],
-                    "public_ip": instance.get("PublicIpAddress"),
-                    "private_ip": instance.get("PrivateIpAddress"),
+                    "key_name": instance.get("KeyName"),
                     "launch_time": instance.get("LaunchTime").isoformat() if instance.get("LaunchTime") else None,
                     "availability_zone": instance["Placement"]["AvailabilityZone"],
+                    "tenancy": instance["Placement"].get("Tenancy", "default"),
+                    "platform": instance.get("PlatformDetails", instance.get("Platform", "Linux/UNIX")),
+                    "ami_id": instance["ImageId"],
+                    "monitoring": instance.get("Monitoring", {}).get("State", "disabled"),
+                    
+                    # Network
+                    "public_ip": instance.get("PublicIpAddress"),
+                    "private_ip": instance.get("PrivateIpAddress"),
+                    "public_dns": instance.get("PublicDnsName"),
+                    "private_dns": instance.get("PrivateDnsName"),
+                    "vpc_id": instance.get("VpcId"),
+                    "subnet_id": instance.get("SubnetId"),
+                    "security_groups": instance.get("SecurityGroups", []),
+                    
+                    # Storage
+                    "block_devices": block_devices,
+                    
+                    # Metadata
+                    "tags": tags,
+                    "iam_role": instance.get("IamInstanceProfile", {}).get("Arn", "").split("/")[-1] if instance.get("IamInstanceProfile") else None
                 }
         return None
     except ClientError as e:
