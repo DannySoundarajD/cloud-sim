@@ -11,23 +11,21 @@ import { CloudSimLogo } from "./components/CloudSimLogo";
 import { LoginModal } from "./components/LoginModal";
 import { IAMPanel } from "./components/IAMPanel";
 import { UserProvider, useUser } from "./contexts/UserContext";
-import type { UserRole } from "./contexts/UserContext";
 
 function AppContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isIAMPanelOpen, setIsIAMPanelOpen] = useState(false);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
-  const { user, login, logout } = useUser();
+  const { user, logout } = useUser();
 
   const handleInstanceClick = (id: string) => {
     setSelectedInstanceId(id);
     setActiveTab("details");
   };
-  const handleLogin = (username: string, role: UserRole) => login(username, role);
   const handleLogout = () => { logout(); setActiveTab("dashboard"); };
 
-  if (!user) return <LoginModal open={true} onLogin={handleLogin} />;
+  if (!user) return <LoginModal open={true} />;
 
   return (
     <div className="min-h-screen bg-gray-50">

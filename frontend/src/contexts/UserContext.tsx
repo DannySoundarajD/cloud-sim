@@ -1,5 +1,5 @@
 /**
- * Enhanced User Context with Backend Authentication
+ * User Context with Backend Authentication
  * 
  * DESIGN DECISIONS:
  * -----------------
@@ -7,10 +7,9 @@
  *    - User stays logged in on page refresh
  *    - Token validation on app load
  * 
- * 2. Role mapping from backend
- *    - Backend stores simple user data
- *    - Frontend maps to UI roles (Admin, Developer, etc.)
- *    - Future: Roles should come from backend
+ * 2. Role comes directly from backend
+ *    - Backend manages user roles (Admin, Developer, DevOps Engineer, User)
+ *    - Frontend displays role-based UI accordingly
  * 
  * 3. Loading state
  *    - Prevents flash of login screen on refresh
@@ -23,10 +22,10 @@ import * as authApi from '../api/auth';
 
 /* eslint-disable react-refresh/only-export-components */
 
-// UI Roles - matches existing app structure
+// User roles - must match backend roles
 export type UserRole = 'Admin' | 'Developer' | 'DevOps Engineer' | 'User' | null;
 
-// User interface combining backend data with UI role
+// User interface matching backend response
 interface User {
   id?: number;
   username: string;  // email from backend
@@ -39,17 +38,12 @@ interface AuthContextType {
   isLoading: boolean;
   error: string | null;
 
-  // Backward compatibility with App.tsx
-  login: (username: string, role: UserRole) => void;
-
-  // Tester mode (mock auth)
-  loginAsTester: (username: string, role: UserRole) => void;
-
-  // Production mode (real backend auth)
+  // Authentication methods
   loginWithCredentials: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
-
   logout: () => void;
+
+  // Utility methods
   hasRole: (role: UserRole) => boolean;
   clearError: () => void;
 }
@@ -84,13 +78,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     initAuth();
   }, []);
 
-  // Tester mode login (mock, no backend)
-  const loginAsTester = useCallback((username: string, role: UserRole) => {
-    setUser({ username, role });
-    setError(null);
-  }, []);
-
-  // Production login with backend
+  // Login with backend credentials
   const loginWithCredentials = useCallback(async (email: string, password: string) => {
     setError(null);
     setIsLoading(true);
@@ -99,7 +87,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
       await authApi.login(email, password);
       const backendUser = await authApi.getCurrentUser();
 
-      // Map backend user to frontend User - role comes from backend
       setUser({
         id: backendUser.id,
         username: backendUser.email,
@@ -154,8 +141,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
       user,
       isLoading,
       error,
-      login: loginAsTester,  // Backward compatibility alias
-      loginAsTester,
       loginWithCredentials,
       register,
       logout,
