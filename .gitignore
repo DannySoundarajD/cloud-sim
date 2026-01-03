@@ -21,6 +21,9 @@ pnpm-debug.log*
 .vscode/*
 !.vscode/extensions.json
 
+# Agent Development Log
+agt/
+
 # Dogs
 # docs/
 # ProjectSprintPlan.csv
