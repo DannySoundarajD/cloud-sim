@@ -22,7 +22,7 @@ The numbered sections below correspond to the callouts in the architecture diagr
 
 ### 1️⃣ User Authentication (Login)
 
-> 📌 **[Image Placeholder: Login Flow Diagram]**
+![Login Flow Diagram](./images/login_flow.png)
 
 Users authenticate through the **LoginModal** component by entering credentials (email/password) or selecting a tester role. The frontend sends a `POST /api/auth/login` request to the backend.
 
@@ -59,7 +59,7 @@ The application uses **JSON Web Tokens (JWT)** for stateless authentication. Tok
 
 ### 3️⃣ Frontend Application (React)
 
-> 📌 **[Image Placeholder: Frontend Component Hierarchy]**
+![Frontend Component Hierarchy](./images/frontend_hierarchy.png)
 
 The frontend is a **React 18 + TypeScript** single-page application built with Vite. It uses **shadcn/ui** components and **Tailwind CSS** for styling.
 
