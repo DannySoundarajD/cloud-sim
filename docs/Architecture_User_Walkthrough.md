@@ -1,4 +1,4 @@
-# CloudSim — Full Architecture Walkthrough (User-Journey Driven)
+# CloudSim — User Journey Walkthrough
 
 ## 1. Purpose and Scope
 
@@ -8,10 +8,15 @@ This document provides a **complete architectural walkthrough of CloudSim**, fol
 
 CloudSim is composed of four primary layers:
 
-- User interaction layer (browser)
-- Frontend application layer (React)
-- Backend orchestration layer (FastAPI)
-- Infrastructure and persistence layer (AWS + PostgreSQL)
+- **User Interaction Layer**: (Browser)
+- **Frontend Application Layer**:
+  - React (UI Framework)
+  - TypeScript (Type-safe JavaScript)
+  - Axios (HTTP Client for API calls)
+  - Vite (Build tool, dev server)
+  - Tailwind CSS (Styling)
+- **Backend Orchestration Layer**: (FastAPI + PostgreSQL)
+- **Infrastructure & Persistence Layer**: (AWS EC2, CloudWatch, Cost Explorer)
 
 The following diagram establishes the architectural context used throughout this walkthrough.
 
@@ -27,9 +32,8 @@ flowchart LR
     Browser -->|UI Events| ReactApp[React SPA]
 ```
 
----
-
 ## 4. Authentication and Session Establishment Flow
+
 ![Authentication Flow](./images/login_flow.png)
 
 Authentication is the first architectural gate. Users submit credentials via the login interface, which are transmitted securely to the backend. The backend validates credentials against the database and issues a signed JWT embedding identity and role claims.
@@ -50,11 +54,8 @@ sequenceDiagram
     API-->>FE: JWT token
 ```
 
-
-
----
-
 ## 5. Dashboard Load Walkthrough
+
 ![Dashboard Load Walkthrough](./images/frontend.png)
 
 After authentication, the dashboard is the primary landing view. Its purpose is to present a real-time inventory of EC2 instances. The frontend requests instance data without assumptions about infrastructure state.
@@ -74,9 +75,8 @@ sequenceDiagram
     API-->>FE: Normalized response
 ```
 
----
-
 ## 6. Instance Lifecycle Operations
+
 ![Instance Lifecycle Operations](./images/launchInstance.png)
 
 Lifecycle actions (start, stop, reboot, terminate) are initiated by explicit user intent. The frontend sends an intent-based request and immediately relinquishes control. All enforcement and execution occur in the backend and AWS.
@@ -96,9 +96,8 @@ sequenceDiagram
     API-->>FE: Action accepted
 ```
 
----
-
 ## 7. Instance Details Aggregation Flow
+
 ![Instance Details Aggregation Flow](./images/instanceDetail.png)
 
 The instance details page requires data from multiple AWS subsystems. Rather than exposing this complexity to the frontend, the backend aggregates and normalizes the data into a single response model.
@@ -123,9 +122,8 @@ flowchart TB
     API --> FE
 ```
 
----
-
 ## 8. Monitoring and Metrics Flow
+
 ![Monitoring and Metrics Flow](./images/monitoringInstance.png)
 
 Monitoring workflows allow users to inspect instance performance over time. The frontend specifies the instance and time range, while the backend handles CloudWatch semantics and data shaping.
@@ -144,9 +142,8 @@ sequenceDiagram
     API-->>FE: Chart-ready metrics
 ```
 
----
-
 ## 9. Administrative Workflow
+
 ![Administrative Workflow](./images/adminSetting.png)
 Administrative actions reuse the same architectural pipeline but require elevated role claims. This ensures a consistent execution model while enforcing least-privilege access.
 
@@ -168,8 +165,6 @@ sequenceDiagram
     API-->>FE: Result
 ```
 
----
-
 ## 10. Error Propagation and Resilience
 
 All errors are handled centrally by the backend. AWS and validation errors are mapped to standardized HTTP responses. The frontend interprets these responses and provides user-friendly feedback without exposing internal system details.
@@ -181,8 +176,6 @@ flowchart LR
     FE -->|UI Feedback| User
 ```
 
----
-
 ## 11. End-to-End Architectural Summary
 
 From the user’s perspective, CloudSim provides a clean, predictable interface for managing infrastructure. From the system’s perspective, it enforces strict separation of concerns:
@@ -190,5 +183,3 @@ From the user’s perspective, CloudSim provides a clean, predictable interface 
 - Frontend expresses intent
 - Backend enforces policy and orchestration
 - AWS executes infrastructure state
-
-

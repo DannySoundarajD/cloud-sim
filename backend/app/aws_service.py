@@ -2,12 +2,16 @@
 AWS EC2 Service Layer for CloudSim.
 
 Provides abstraction over Boto3 for EC2 operations.
-Uses credentials from ~/.aws/credentials (configured via aws configure).
+
+CREDENTIAL CHAIN (in order of priority):
+1. Explicit credentials in .env (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+2. AWS profile in .env (AWS_PROFILE)
+3. Default boto3 chain (~/.aws/credentials, IAM role, etc.)
 
 DESIGN DECISIONS:
 -----------------
-1. Uses default credential chain - reads from ~/.aws/credentials
-2. Region configurable via environment variable or default
+1. Centralized config via config.py
+2. Flexible credential handling for different environments
 3. Returns typed dictionaries for consistency
 """
 
@@ -16,12 +20,42 @@ from botocore.exceptions import ClientError
 from typing import Optional
 import os
 
-# Get region from environment or default to us-east-1
-AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+from .config import settings
 
-# Initialize EC2 client
-ec2 = boto3.client("ec2", region_name=AWS_REGION)
-ec2_resource = boto3.resource("ec2", region_name=AWS_REGION)
+
+def _get_boto3_session() -> boto3.Session:
+    """
+    Create a boto3 session based on configuration.
+    
+    Priority:
+    1. Explicit credentials (AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY)
+    2. Named profile (AWS_PROFILE)
+    3. Default credential chain
+    """
+    if settings.aws_access_key_id and settings.aws_secret_access_key:
+        # Use explicit credentials from .env
+        return boto3.Session(
+            aws_access_key_id=settings.aws_access_key_id,
+            aws_secret_access_key=settings.aws_secret_access_key,
+            aws_session_token=settings.aws_session_token,
+            region_name=settings.aws_region,
+        )
+    elif settings.aws_profile:
+        # Use named profile
+        return boto3.Session(
+            profile_name=settings.aws_profile,
+            region_name=settings.aws_region,
+        )
+    else:
+        # Use default credential chain
+        return boto3.Session(region_name=settings.aws_region)
+
+
+# Create session and clients
+_session = _get_boto3_session()
+ec2 = _session.client("ec2")
+ec2_resource = _session.resource("ec2")
+
 
 
 def list_instances() -> list[dict]:
@@ -239,7 +273,7 @@ def get_available_instance_types() -> list[str]:
 # ============================================================================
 # CLOUDWATCH METRICS
 # ============================================================================
-cloudwatch = boto3.client("cloudwatch", region_name=AWS_REGION)
+cloudwatch = _session.client("cloudwatch")
 
 
 def get_instance_metrics(instance_id: str, period_minutes: int = 60) -> dict:
@@ -314,7 +348,8 @@ def get_instance_current_metrics(instance_id: str) -> dict:
 # ============================================================================
 # COST EXPLORER
 # ============================================================================
-cost_explorer = boto3.client("ce", region_name="us-east-1")  # CE only available in us-east-1
+# Note: Cost Explorer is only available in us-east-1
+cost_explorer = _session.client("ce", region_name="us-east-1")
 
 
 def get_daily_costs(days: int = 7) -> list[dict]:

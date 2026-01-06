@@ -33,14 +33,14 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 
 from .db import get_db
+from .config import settings
 
 # ============================================================================
-# CONFIGURATION
+# CONFIGURATION (from .env via config.py)
 # ============================================================================
-# TODO: Move to environment variables for production
-SECRET_KEY = "your-secret-key-change-in-production"  # openssl rand -hex 32
-ALGORITHM = "HS256"  # HMAC with SHA-256 - fast and secure for symmetric keys
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+SECRET_KEY = settings.secret_key
+ALGORITHM = settings.algorithm
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
 
 # ============================================================================
 # PASSWORD HASHING

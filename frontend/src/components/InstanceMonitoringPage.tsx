@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Activity, Download, RefreshCw, DollarSign, AlertCircle, Loader2 } from 'lucide-react';
-import { getInstanceMetrics, type InstanceMetrics, type DailyCost, type CostSummary } from '../api/ec2';
+import { getInstanceMetrics, getDailyCosts, getCostSummary, type InstanceMetrics, type DailyCost, type CostSummary } from '../api/ec2';
 import { fetchInstances, type Instance } from '../api/instances';
 
 // MOCK DATA: Use this to avoid AWS Cost Explorer charges
@@ -100,22 +100,18 @@ export function InstanceMonitoringPage() {
     const loadCosts = async () => {
       setCostsLoading(true);
       try {
-        /*
-        // Disable real API calls to save costs
+        // Real AWS Cost Explorer API calls
         const [dailyCosts, summary] = await Promise.all([
           getDailyCosts(7),
           getCostSummary()
         ]);
         setCostData(dailyCosts);
         setCostSummary(summary);
-        */
-
-        // Use mock data
-        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
-        setCostData(MOCK_DAILY_COSTS);
-        setCostSummary(MOCK_COST_SUMMARY);
       } catch (err) {
         console.error('Failed to fetch costs:', err);
+        // Fallback to mock data if API fails
+        setCostData(MOCK_DAILY_COSTS);
+        setCostSummary(MOCK_COST_SUMMARY);
       } finally {
         setCostsLoading(false);
       }
@@ -167,22 +163,18 @@ export function InstanceMonitoringPage() {
     }
     setCostsLoading(true);
     try {
-      /*
-      // Disable real API calls to save costs
+      // Real AWS Cost Explorer API calls
       const [dailyCosts, summary] = await Promise.all([
         getDailyCosts(7),
         getCostSummary()
       ]);
       setCostData(dailyCosts);
       setCostSummary(summary);
-      */
-
-      // Use mock data
-      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
-      setCostData(MOCK_DAILY_COSTS);
-      setCostSummary(MOCK_COST_SUMMARY);
     } catch (err) {
       console.error('Failed to refresh costs:', err);
+      // Fallback to mock data if API fails
+      setCostData(MOCK_DAILY_COSTS);
+      setCostSummary(MOCK_COST_SUMMARY);
     } finally {
       setCostsLoading(false);
     }
