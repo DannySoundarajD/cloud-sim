@@ -8,11 +8,16 @@ CREDENTIAL CHAIN (in order of priority):
 2. AWS profile in .env (AWS_PROFILE)
 3. Default boto3 chain (~/.aws/credentials, IAM role, etc.)
 
+ROLE-BASED ACCESS:
+When ENABLE_ROLE_BASED_ACCESS=true, users get AWS clients with
+permissions based on their CloudSim role (Admin, Developer, User, etc.)
+
 DESIGN DECISIONS:
 -----------------
 1. Centralized config via config.py
 2. Flexible credential handling for different environments
 3. Returns typed dictionaries for consistency
+4. Optional role-based access via STS AssumeRole
 """
 
 import boto3
@@ -51,11 +56,56 @@ def _get_boto3_session() -> boto3.Session:
         return boto3.Session(region_name=settings.aws_region)
 
 
-# Create session and clients
+# Create session and default clients (used when role-based access is disabled)
 _session = _get_boto3_session()
 ec2 = _session.client("ec2")
 ec2_resource = _session.resource("ec2")
 
+
+def get_ec2_client_for_user(user_role: str, user_id: int):
+    """
+    Get EC2 client based on user role.
+    
+    If ENABLE_ROLE_BASED_ACCESS is true, returns a client with assumed role.
+    Otherwise, returns the default shared client.
+    
+    Args:
+        user_role: CloudSim user role (Admin, Developer, DevOps Engineer, User)
+        user_id: User ID for session naming
+        
+    Returns:
+        boto3 EC2 client
+    """
+    if settings.enable_role_based_access:
+        from .aws_role_manager import get_aws_client_for_user
+        role_client = get_aws_client_for_user('ec2', user_role, user_id)
+        if role_client:
+            return role_client
+    
+    # Fall back to default client
+    return ec2
+
+
+def get_cloudwatch_client_for_user(user_role: str, user_id: int):
+    """Get CloudWatch client based on user role."""
+    if settings.enable_role_based_access:
+        from .aws_role_manager import get_aws_client_for_user
+        role_client = get_aws_client_for_user('cloudwatch', user_role, user_id)
+        if role_client:
+            return role_client
+    
+    return cloudwatch
+
+
+def get_cost_explorer_client_for_user(user_role: str, user_id: int):
+    """Get Cost Explorer client based on user role."""
+    if settings.enable_role_based_access:
+        from .aws_role_manager import get_aws_client_for_user
+        role_client = get_aws_client_for_user('ce', user_role, user_id)
+        if role_client:
+            return role_client
+    
+    return cost_explorer
 
 
 def list_instances() -> list[dict]:
