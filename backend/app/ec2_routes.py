@@ -134,6 +134,36 @@ def sync_instances_to_db(aws_instances: list, db: Session):
 
 
 # ============================================================================
+# HELPER: Filter instances by user ownership
+# ============================================================================
+def _filter_instances_for_user(instances: list, user: User) -> list:
+    """
+    Filter instances based on user role.
+    - Admin/DevOps/Developer: See all instances
+    - User: See only instances they created (CreatedBy tag matches user ID)
+    """
+    if user.role in ["Admin", "DevOps Engineer", "Developer"]:
+        return instances
+    
+    # For User role, filter by CreatedBy tag
+    filtered = []
+    for inst in instances:
+        # Check if instance was created by this user
+        created_by = None
+        # list_instances returns flat dict, get_instance returns nested tags
+        if "tags" in inst:
+            for tag in inst.get("tags", []):
+                if tag.get("Key") == "CreatedBy":
+                    created_by = tag.get("Value")
+                    break
+        
+        if created_by == str(user.id):
+            filtered.append(inst)
+    
+    return filtered
+
+
+# ============================================================================
 # ENDPOINTS
 # ============================================================================
 @router.get("/instances", response_model=list[InstanceResponse])
@@ -141,11 +171,18 @@ async def list_instances(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """List all EC2 instances and sync to local DB."""
+    """
+    List EC2 instances.
+    - Admin/DevOps/Developer: See all instances
+    - User: See only instances they created
+    """
     try:
         instances = aws_service.list_instances()
         sync_instances_to_db(instances, db)
-        return instances
+        
+        # Filter based on user role
+        filtered_instances = _filter_instances_for_user(instances, current_user)
+        return filtered_instances
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -155,11 +192,26 @@ async def get_instance(
     instance_id: str,
     current_user: User = Depends(get_current_user)
 ):
-    """Get a specific EC2 instance."""
+    """
+    Get a specific EC2 instance.
+    Users can only view instances they created.
+    """
     try:
         instance = aws_service.get_instance(instance_id)
         if not instance:
             raise HTTPException(status_code=404, detail="Instance not found")
+        
+        # Check ownership for User role
+        if current_user.role == "User":
+            created_by = None
+            for tag in instance.get("tags", []):
+                if tag.get("Key") == "CreatedBy":
+                    created_by = tag.get("Value")
+                    break
+            
+            if created_by != str(current_user.id):
+                raise HTTPException(status_code=403, detail="You can only view instances you created")
+        
         return instance
     except HTTPException:
         raise
@@ -189,10 +241,35 @@ async def create_instance(
         result = aws_service.create_instance(
             name=request.name,
             instance_type=request.instance_type,
+            user_id=current_user.id,
+            user_email=current_user.email,
         )
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+def _check_instance_ownership(instance_id: str, user: User) -> bool:
+    """
+    Check if user owns the instance (by CreatedBy tag).
+    Admins and DevOps can access any instance.
+    """
+    if user.role in ["Admin", "DevOps Engineer"]:
+        return True
+    
+    # For User and Developer roles, check ownership
+    try:
+        instance = aws_service.get_instance(instance_id)
+        if not instance:
+            return False
+        
+        # Check CreatedBy tag
+        for tag in instance.get("tags", []):
+            if tag.get("Key") == "CreatedBy" and tag.get("Value") == str(user.id):
+                return True
+        
+        return False
+    except Exception:
+        return False
 
 
 @router.post("/instances/{instance_id}/start", response_model=ActionResponse)
@@ -200,7 +277,12 @@ async def start_instance(
     instance_id: str,
     current_user: User = Depends(get_current_user)
 ):
-    """Start a stopped EC2 instance."""
+    """Start a stopped EC2 instance. Users can only start their own instances."""
+    # Check ownership for User role
+    if current_user.role == "User":
+        if not _check_instance_ownership(instance_id, current_user):
+            raise HTTPException(status_code=403, detail="You can only start instances you created")
+    
     try:
         return aws_service.start_instance(instance_id)
     except Exception as e:
@@ -212,7 +294,12 @@ async def stop_instance(
     instance_id: str,
     current_user: User = Depends(get_current_user)
 ):
-    """Stop a running EC2 instance."""
+    """Stop a running EC2 instance. Users can only stop their own instances."""
+    # Check ownership for User role
+    if current_user.role == "User":
+        if not _check_instance_ownership(instance_id, current_user):
+            raise HTTPException(status_code=403, detail="You can only stop instances you created")
+    
     try:
         return aws_service.stop_instance(instance_id)
     except Exception as e:

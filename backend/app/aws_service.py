@@ -258,6 +258,8 @@ def create_instance(
     name: str,
     instance_type: str = "t2.micro",
     image_id: str = None,
+    user_id: int = None,
+    user_email: str = None,
 ) -> dict:
     """
     Create a new EC2 instance.
@@ -266,6 +268,8 @@ def create_instance(
         name: Name tag for the instance
         instance_type: EC2 instance type (default: t2.micro - free tier)
         image_id: AMI ID (defaults to Amazon Linux 2023 in us-east-1)
+        user_id: CloudSim user ID for instance isolation
+        user_email: CloudSim user email for auditing
     """
     # Default to Amazon Linux 2023 AMI in us-east-1
     if not image_id:
@@ -283,6 +287,18 @@ def create_instance(
         else:
             raise Exception("No suitable AMI found")
     
+    # Build tags - always include Name, optionally include creator info
+    tags = [{"Key": "Name", "Value": name}]
+    
+    if user_id is not None:
+        tags.append({"Key": "CreatedBy", "Value": str(user_id)})
+    
+    if user_email:
+        tags.append({"Key": "CreatedByEmail", "Value": user_email})
+    
+    # Add CloudSim identifier
+    tags.append({"Key": "ManagedBy", "Value": "CloudSim"})
+    
     try:
         response = ec2_resource.create_instances(
             ImageId=image_id,
@@ -292,7 +308,7 @@ def create_instance(
             TagSpecifications=[
                 {
                     "ResourceType": "instance",
-                    "Tags": [{"Key": "Name", "Value": name}],
+                    "Tags": tags,
                 }
             ],
         )
