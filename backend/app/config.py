@@ -4,22 +4,66 @@ Configuration module for CloudSim Backend.
 Loads environment variables from .env file and provides
 typed configuration classes for different parts of the application.
 
-USAGE:
-    from .config import settings
-    print(settings.aws_region)
+AWS CREDENTIALS:
+    - Production: AWS Secrets Manager (prod/cloudsim)
+    - Development: root-credentials/credentials file
 
-SECURITY:
-    - SECRET_KEY validation in production
-    - Allowed origins for CORS whitelist
-    - Rate limiting configuration
+USAGE:
+    from .config import settings, root_access_key, root_secret_key
+    print(settings.aws_region)
 """
 
 from pydantic_settings import BaseSettings
 from pydantic import field_validator
-from typing import Optional
+from typing import Optional, Tuple
 from functools import lru_cache
 import secrets
 import warnings
+import os
+import configparser
+import json
+
+
+# =============================================================================
+# AWS CREDENTIALS LOADING
+# =============================================================================
+
+def get_root_credentials() -> Tuple[str, str]:
+    """Get root AWS credentials from Secrets Manager (for production)."""
+    import boto3
+    client = boto3.client('secretsmanager', region_name='us-east-1')
+    response = client.get_secret_value(SecretId='prod/cloudsim')
+    secret = json.loads(response['SecretString'])
+    return secret['aws_access_key_id'], secret['aws_secret_access_key']
+
+
+def load_local_credentials() -> Tuple[Optional[str], Optional[str]]:
+    """Load AWS credentials from root-credentials/credentials file (for development)."""
+    config = configparser.ConfigParser()
+    # Path relative to this file: backend/app/config.py -> root-credentials/credentials
+    creds_file = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        'root-credentials',
+        'credentials'
+    )
+    
+    if os.path.exists(creds_file):
+        config.read(creds_file)
+        if 'root' in config:
+            return (
+                config['root'].get('aws_access_key_id'),
+                config['root'].get('aws_secret_access_key')
+            )
+    
+    # Fall back to environment variables
+    return os.getenv('AWS_ACCESS_KEY_ID'), os.getenv('AWS_SECRET_ACCESS_KEY')
+
+
+# Load credentials based on environment
+if os.getenv('ENVIRONMENT', 'development').lower() == 'production':
+    root_access_key, root_secret_key = get_root_credentials()
+else:
+    root_access_key, root_secret_key = load_local_credentials()
 
 
 class Settings(BaseSettings):
@@ -49,14 +93,13 @@ class Settings(BaseSettings):
     # =========================================================================
     # JWT AUTHENTICATION
     # =========================================================================
-    secret_key: str = "your-secret-key-change-in-production"
+    secret_key: str = "your-secret-key"
     access_token_expire_minutes: int = 30
     algorithm: str = "HS256"
     
     # =========================================================================
     # CORS & SECURITY
     # =========================================================================
-    # Comma-separated list of allowed origins (e.g., "http://localhost:5173,https://app.example.com")
     allowed_origins: str = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173"
     
     # =========================================================================
@@ -67,7 +110,7 @@ class Settings(BaseSettings):
     aws_session_token: Optional[str] = None
     aws_profile: Optional[str] = None
     aws_region: str = "us-east-1"
-    aws_account_id: str = "096615316348"  # Your AWS account ID
+    aws_account_id: str = "096615316348"
     
     # =========================================================================
     # IAM ROLE ARNS (for role-based AWS access)
@@ -92,7 +135,7 @@ class Settings(BaseSettings):
         - In production: must be at least 32 characters and not the default
         - In development: warn if using default key
         """
-        default_key = "your-secret-key-change-in-production"
+        default_key = "your-secret-key"
         
         # We can't access other fields directly in validators, so check via environment
         import os
