@@ -7,7 +7,7 @@ Complete guide to set up AWS IAM for CloudSim from your root/admin AWS account.
 ## Overview
 
 We will create:
-1. **One IAM User** (`cloudsim-backend`) - Used by the backend application
+1. **One IAM User** (`cloudsim-service`) - Used by the backend application
 2. **Four IAM Roles** - One for each CloudSim user role, assumed via STS
 
 ```
@@ -301,7 +301,7 @@ user@gmail.com (User)       → CloudSimUserRole (view + start/stop only)
 
 1. Go to: https://console.aws.amazon.com/iam/home#/users
 2. Click **Create user**
-3. User name: `cloudsim-backend`
+3. User name: `cloudsim-service`
 4. Click **Next**
 5. Select **Attach policies directly**
 6. Search and check: `CloudSimAdminPolicy` (the backend needs full access to assume roles)
@@ -309,7 +309,7 @@ user@gmail.com (User)       → CloudSimUserRole (view + start/stop only)
 
 ### Step 3.2: Create Access Key
 
-1. Click on `cloudsim-backend` user
+1. Click on `cloudsim-service` user
 2. Go to **Security credentials** tab
 3. Click **Create access key**
 4. Select **Application running outside AWS**
@@ -371,7 +371,7 @@ Create **4 roles** - one for each CloudSim user type.
         {
             "Effect": "Allow",
             "Principal": {
-                "AWS": "arn:aws:iam::096615316348:user/cloudsim-backend"
+                "AWS": "arn:aws:iam::096615316348:user/cloudsim-service"
             },
             "Action": "sts:AssumeRole"
         }
@@ -414,7 +414,7 @@ Repeat:
 
 ```bash
 aws configure
-# Enter the new access key and secret from cloudsim-backend user
+# Enter the new access key and secret from cloudsim-service user
 ```
 
 Or update `~/.aws/credentials`:
