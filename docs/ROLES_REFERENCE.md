@@ -110,7 +110,7 @@ ec2:RebootInstances (own only)
 | Email | Password | Role | Purpose |
 |-------|----------|------|---------|
 | admin@gmail.com | admin123 | Admin | Full system access |
-| devops@gmail.com | devops123 | DevOps Engineer | Infrastructure management |
+| deng@gmail.com | deng123 | DevOps Engineer | Infrastructure management |
 | user@gmail.com | user123 | User | Basic end-user access |
 
 ---
