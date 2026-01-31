@@ -122,7 +122,7 @@ async def update_user(
         )
     
     if user_data.role is not None:
-        valid_roles = ["Admin", "Developer", "DevOps Engineer", "User"]
+        valid_roles = ["Admin", "DevOps Engineer", "User"]
         if user_data.role not in valid_roles:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

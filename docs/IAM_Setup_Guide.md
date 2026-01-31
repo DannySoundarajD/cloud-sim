@@ -84,7 +84,7 @@ user@gmail.com (User)       → CloudSimUserRole (view + start/stop only)
 
 ### Step 2.2: Create DevOps Engineer Policy
 
-**DevOps = Developer + create instances**
+**DevOps = User permissions + create instances + view metrics**
 
 1. Click **Create policy**
 2. Select **JSON** tab

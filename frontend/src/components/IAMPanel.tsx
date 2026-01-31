@@ -145,13 +145,13 @@ export function IAMPanel({ open, onOpenChange }: IAMPanelProps) {
                       </div>
                     </div>
                   )}
-                  {user?.role === 'Developer' && (
+                  {user?.role === 'DevOps Engineer' && (
                     <div className="flex items-start gap-3">
-                      <Code className="h-5 w-5 text-blue-600 mt-0.5" />
+                      <Activity className="h-5 w-5 text-green-600 mt-0.5" />
                       <div>
-                        <p className="text-sm font-medium">Developer</p>
+                        <p className="text-sm font-medium">DevOps Engineer</p>
                         <p className="text-sm text-gray-600">
-                          API access, custom dashboard creation, instance connectivity via REST APIs, and cost tracking
+                          Full EC2 access, auto-scaling configuration, metric alerts, API access, and cost tracking
                         </p>
                       </div>
                     </div>
@@ -214,14 +214,14 @@ export function IAMPanel({ open, onOpenChange }: IAMPanelProps) {
                     variant="outline"
                     className="w-full justify-start"
                     onClick={() => {
-                      if (checkAccess('Developer', 'access API dashboard')) {
+                      if (checkAccess('DevOps Engineer', 'access API dashboard')) {
                         alert('Opening API dashboard...');
                       }
                     }}
                   >
                     <Code className="h-4 w-4 mr-2" />
                     API Dashboard
-                    {!hasRole('Developer') && <Lock className="h-3 w-3 ml-auto text-gray-400" />}
+                    {!hasRole('DevOps Engineer') && <Lock className="h-3 w-3 ml-auto text-gray-400" />}
                   </Button>
                 </div>
               </Card>
@@ -247,17 +247,7 @@ export function IAMPanel({ open, onOpenChange }: IAMPanelProps) {
                       </div>
                     </div>
                   )}
-                  {user?.role === 'Developer' && (
-                    <div className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-100 rounded-lg">
-                      <Code className="h-5 w-5 text-blue-600 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium">Developer Settings Available</p>
-                        <p className="text-sm text-gray-600">
-                          Configure API access, manage custom dashboards, and control REST API endpoints
-                        </p>
-                      </div>
-                    </div>
-                  )}
+
                   {user?.role === 'DevOps Engineer' && (
                     <div className="flex items-start gap-3 p-3 bg-green-50 border border-green-100 rounded-lg">
                       <Activity className="h-5 w-5 text-green-600 mt-0.5" />
@@ -383,7 +373,6 @@ export function IAMPanel({ open, onOpenChange }: IAMPanelProps) {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="User">User</SelectItem>
-                              <SelectItem value="Developer">Developer</SelectItem>
                               <SelectItem value="DevOps Engineer">DevOps Engineer</SelectItem>
                               <SelectItem value="Admin">Admin</SelectItem>
                             </SelectContent>
@@ -517,114 +506,6 @@ export function IAMPanel({ open, onOpenChange }: IAMPanelProps) {
                       >
                         Apply Network Settings
                       </Button>
-                    </div>
-                  </Card>
-                </>
-              )}
-
-              {/* Developer-specific content */}
-              {user?.role === 'Developer' && (
-                <>
-                  <Card className="p-4">
-                    <h3 className="font-medium mb-4">API Configuration</h3>
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="api-key">API Key</Label>
-                        <div className="flex gap-2">
-                          <Input
-                            id="api-key"
-                            type="password"
-                            value="sk_live_••••••••••••••••"
-                            readOnly
-                            disabled={!hasRole('Developer')}
-                          />
-                          <Button
-                            variant="outline"
-                            disabled={!hasRole('Developer')}
-                            onClick={() => {
-                              if (checkAccess('Developer', 'regenerate API key')) {
-                                alert('API key regenerated');
-                              }
-                            }}
-                          >
-                            Regenerate
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="api-endpoint">API Endpoint</Label>
-                        <Input
-                          id="api-endpoint"
-                          value="https://api.cloudsim.com/v1"
-                          readOnly
-                        />
-                      </div>
-                    </div>
-                  </Card>
-
-                  <Card className="p-4">
-                    <h3 className="font-medium mb-4">REST API Access</h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
-                          <p className="text-sm font-medium">Instance Management API</p>
-                          <p className="text-xs text-gray-600">GET, POST, PUT, DELETE /instances</p>
-                        </div>
-                        <Badge>Enabled</Badge>
-                      </div>
-                      <div className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
-                          <p className="text-sm font-medium">Monitoring API</p>
-                          <p className="text-xs text-gray-600">GET /metrics, /logs</p>
-                        </div>
-                        <Badge>Enabled</Badge>
-                      </div>
-                      <Button
-                        disabled={!hasRole('Developer')}
-                        onClick={() => {
-                          if (checkAccess('Developer', 'view API documentation')) {
-                            alert('Opening API documentation...');
-                          }
-                        }}
-                      >
-                        <Code className="h-4 w-4 mr-2" />
-                        View API Documentation
-                      </Button>
-                    </div>
-                  </Card>
-
-                  <Card className="p-4">
-                    <h3 className="font-medium mb-4">Custom Dashboards</h3>
-                    <div className="space-y-3">
-                      <Button
-                        className="w-full"
-                        disabled={!hasRole('Developer')}
-                        onClick={() => {
-                          if (checkAccess('Developer', 'create custom dashboard')) {
-                            alert('Creating custom dashboard...');
-                          }
-                        }}
-                      >
-                        <BarChart3 className="h-4 w-4 mr-2" />
-                        Create New Dashboard
-                      </Button>
-                      <div className="p-3 border rounded-lg">
-                        <p className="text-sm font-medium mb-2">Existing Dashboards</p>
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between text-sm">
-                            <span>Production Metrics</span>
-                            <Button size="sm" variant="ghost" disabled={!hasRole('Developer')}>
-                              Edit
-                            </Button>
-                          </div>
-                          <div className="flex items-center justify-between text-sm">
-                            <span>Dev Environment Status</span>
-                            <Button size="sm" variant="ghost" disabled={!hasRole('Developer')}>
-                              Edit
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
                     </div>
                   </Card>
                 </>
