@@ -93,7 +93,7 @@ export interface ActionResponse {
 //     "private_ip": "172.31.16.22"
 //   }
 // ]
-// ```
+// 
 export async function listInstances(): Promise<EC2Instance[]> {
     const response = await api.get<EC2Instance[]>('/api/ec2/instances');
     return response.data;
@@ -103,10 +103,10 @@ export async function listInstances(): Promise<EC2Instance[]> {
 // Get detailed information for a specific instance.
 //
 // CURL TEST:
-// ```bash
+// 
 // curl -X GET http://localhost:8000/api/ec2/instances/i-0abc123def456 \
 //   -H "Authorization: Bearer YOUR_JWT_TOKEN"
-// ```
+// 
 export async function getInstance(instanceId: string): Promise<EC2InstanceDetails> {
     const response = await api.get<EC2InstanceDetails>(`/api/ec2/instances/${instanceId}`);
     return response.data;

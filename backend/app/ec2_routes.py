@@ -293,8 +293,8 @@ async def list_instances(
         500: AWS API error
     """
     try:
-        # Fetch from AWS
-        instances = aws_service.list_instances()
+        # Fetch from AWS (using role-based access if enabled)
+        instances = aws_service.list_instances(current_user.role, current_user.id)
         
         # Sync to local database
         sync_instances_to_db(instances, db)

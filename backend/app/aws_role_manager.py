@@ -151,7 +151,7 @@ class AWSRoleManager:
                 client = self._role_sessions[cache_key]
                 # Test with a simple call to verify credentials still valid
                 if service == 'ec2':
-                    client.describe_regions(MaxResults=1)
+                    client.describe_regions()
                 return client
             except ClientError:
                 # Credentials expired, remove from cache

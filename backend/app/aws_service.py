@@ -148,11 +148,15 @@ def get_cost_explorer_client_for_user(user_role: str, user_id: int):
 # =============================================================================
 # EC2 OPERATIONS - List Instances
 # =============================================================================
-def list_instances() -> list[dict]:
+def list_instances(user_role: Optional[str] = None, user_id: Optional[int] = None) -> list[dict]:
     """
     List all EC2 instances in the configured region.
     
     Includes tags for ownership filtering (CreatedBy tag).
+
+    Args:
+        user_role: CloudSim user role (optional, for role-based access)
+        user_id: User ID (optional, for role-based access)
     
     Returns:
         List of instance dicts with:
@@ -164,7 +168,9 @@ def list_instances() -> list[dict]:
         Exception: If AWS API call fails
     """
     try:
-        response = ec2.describe_instances()
+        # Get client with appropriate permissions
+        client = get_ec2_client_for_user(user_role, user_id)
+        response = client.describe_instances()
         instances = []
         
         for reservation in response.get("Reservations", []):
