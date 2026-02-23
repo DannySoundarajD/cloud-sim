@@ -67,9 +67,9 @@ CloudSim is a fullstack web application with:
 ### 2.2 User Classes & Characteristics
 | Role | Permissions |
 |------|-------------|
-| **User** | View instances, start/stop own instances |
-| **DevOps Engineer** | Full EC2 + CloudWatch + Cost Explorer (no terminate) |
-| **Admin** | All permissions + terminate instances, manage users, quotas |
+| **User** | Manage (start/stop/reboot/terminate) own instances, view own metrics |
+| **DevOps Engineer** | Full EC2 + CloudWatch + Cost Explorer |
+| **Admin** | All permissions + manage users, modify quotas |
 
 ### 2.3 Operating Environment
 - Modern desktop browser (Chrome, Firefox, Safari)
@@ -94,10 +94,10 @@ CloudSim is a fullstack web application with:
 
 | As a | I want to | So that I can | Acceptance Criteria |
 |------|-----------|---------------|---------------------|
-| User | View all my virtual instances | Monitor infrastructure | Dashboard shows instance name, status, type, IPs |
-| User | Start or stop my instance | Manage compute lifecycle | Status toggles between Running and Stopped |
+| User | View my own virtual instances | Monitor my infrastructure | Dashboard shows instance name, status, type, IPs (filtered to own) |
+| User | Manage (start/stop/reboot/terminate) my instance | Manage compute lifecycle | State transitions appropriately for own instance |
 | DevOps Engineer | Create new instances | Provision resources | "Launch Instance" creates real EC2 instance |
-| Admin | Terminate an instance | Clean up resources | Instance removed from AWS and UI |
+| DevOps Engineer | Manage/Terminate any instance | Clean up resources | Instance removed from AWS and UI |
 | DevOps Engineer | View instance details | Inspect configuration | Details page shows security groups, storage, tags |
 
 ### Epic 2: Storage and Networking
@@ -112,7 +112,7 @@ CloudSim is a fullstack web application with:
 
 | As a | I want to | So that I can | Acceptance Criteria |
 |------|-----------|---------------|---------------------|
-| User | View real-time metrics (CPU, Network) | Monitor performance | Charts update with CloudWatch data |
+| DevOps Engineer | View real-time metrics (CPU, Network) | Monitor performance | Charts update with CloudWatch data |
 | DevOps Engineer | View cost breakdown | Track spending | Cost charts show daily spend by service |
 | Admin | Export metrics data | Perform analysis | CSV export available |
 
@@ -180,7 +180,7 @@ Response: {
 
 ### 4.3 Instance Action Flow (Start/Stop/Reboot)
 
-**Actor:** User (own instances), Admin (any instance)
+**Actor:** User (own instances only), DevOps Engineer, Admin
 
 1. User clicks action button (Start/Stop/Reboot) on instance
 2. Frontend sends `POST /api/ec2/instances/{id}/start|stop|reboot`
@@ -191,11 +191,11 @@ Response: {
 
 ### 4.4 Instance Termination Flow (Delete)
 
-**Actor:** Admin only
+**Actor:** User (own instances only), DevOps Engineer, Admin
 
-1. Admin clicks "Terminate" button on instance
+1. User clicks "Terminate" button on instance
 2. Confirmation dialog appears with warning
-3. Admin confirms → Frontend sends `DELETE /api/ec2/instances/{id}`
+3. User confirms → Frontend sends `DELETE /api/ec2/instances/{id}`
 4. Backend calls `ec2.terminate_instances()`
 5. Instance state changes to `shutting-down` then `terminated`
 6. Frontend removes instance from active list
@@ -220,7 +220,7 @@ Response: {
 - **FR-2:** Create instance with name and type selection
 - **FR-3:** Start/Stop instance with state persistence
 - **FR-4:** Reboot running instances
-- **FR-5:** Terminate instance (Admin only)
+- **FR-5:** Terminate instance (requires ownership for User; DevOps/Admin can terminate any)
 - **FR-6:** View detailed instance information
 
 ### 5.2 Storage & Networking (Epic 2)
@@ -419,7 +419,7 @@ Retrieved in real-time via boto3:
 - [x] **AC-2:** Dashboard displays real EC2 instances from AWS
 - [x] **AC-3:** Instance details show security groups, storage, and tags
 - [x] **AC-4:** Start/Stop/Reboot buttons trigger corresponding AWS actions
-- [x] **AC-5:** Admin can terminate instances
+- [x] **AC-5:** DevOps/Admin can terminate any instances; Users can terminate own
 - [x] **AC-6:** Monitoring page shows CloudWatch metrics charts
 - [x] **AC-7:** DevOps Engineer can create new instances
 - [x] **AC-8:** All API endpoints require authentication

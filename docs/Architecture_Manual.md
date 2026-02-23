@@ -183,21 +183,20 @@ The authentication module handles user registration, login, and JWT validation u
 
 > 📌 **[Image Placeholder: Role Permissions Matrix]**
 
-CloudSim implements role-based access control with four roles:
+CloudSim implements role-based access control with three roles:
 
 | Role | Permissions |
 |------|-------------|
-| **User** | View instances, start/stop own instances |
-| **DevOps Engineer** | Full EC2 + CloudWatch + Cost Explorer (no terminate) |
-| **Admin** | All permissions + terminate instances, manage users |
+| **User** | Manage (start/stop/reboot/terminate) own instances, view own metrics |
+| **DevOps Engineer** | Full EC2 + CloudWatch + Cost Explorer |
+| **Admin** | All permissions + manage users, modify quotas |
 
 **Implementation:**
 ```python
 # backend/app/ec2_routes.py
 @router.delete("/instances/{instance_id}")
 async def terminate_instance(instance_id: str, current_user: User = Depends(get_current_user)):
-    if current_user.role != "Admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
+    # Backend verifies role and instance ownership before calling AWS
     return aws_service.terminate_instance(instance_id)
 ```
 

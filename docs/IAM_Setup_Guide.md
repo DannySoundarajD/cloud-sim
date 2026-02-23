@@ -12,8 +12,8 @@ We will create:
 Database Users              IAM Roles
 ─────────────────────       ──────────────────────────
 admin@gmail.com (Admin)     → CloudSimAdminRole (full access)
-devops@gmail.com (DevOps)   → CloudSimDevOpsRole (full EC2, no terminate)
-user@gmail.com (User)       → CloudSimUserRole (view + start/stop only)
+devops@gmail.com (DevOps)   → CloudSimDevOpsRole (full EC2, incl. terminate)
+user@gmail.com (User)       → CloudSimUserRole (manage own instances only)
 ```
 
 ---
@@ -134,12 +134,6 @@ user@gmail.com (User)       → CloudSimUserRole (view + start/stop only)
             "Resource": "*"
         },
         {
-            "Sid": "DenyTerminate",
-            "Effect": "Deny",
-            "Action": "ec2:TerminateInstances",
-            "Resource": "*"
-        },
-        {
             "Sid": "DenyVPCChanges",
             "Effect": "Deny",
             "Action": [
@@ -160,7 +154,7 @@ user@gmail.com (User)       → CloudSimUserRole (view + start/stop only)
 
 ### Step 2.3: Create User (Basic) Policy
 
-**User = View instances, start/stop own instances, view costs**
+**User = View own instances, manage (start/stop/reboot/terminate) own instances, view own metrics**
 
 1. Click **Create policy**
 2. Select **JSON** tab
@@ -180,31 +174,33 @@ user@gmail.com (User)       → CloudSimUserRole (view + start/stop only)
             "Resource": "*"
         },
         {
-            "Sid": "AllowStartStopOwn",
+            "Sid": "AllowManageOwn",
             "Effect": "Allow",
             "Action": [
                 "ec2:StartInstances",
-                "ec2:StopInstances"
+                "ec2:StopInstances",
+                "ec2:RebootInstances",
+                "ec2:TerminateInstances"
             ],
             "Resource": "*"
         },
         {
-            "Sid": "CostExplorerRead",
+            "Sid": "CloudWatchRead",
             "Effect": "Allow",
             "Action": [
-                "ce:GetCostAndUsage",
-                "ce:GetCostForecast"
+                "cloudwatch:GetMetricData",
+                "cloudwatch:GetMetricStatistics",
+                "cloudwatch:ListMetrics",
+                "cloudwatch:DescribeAlarms"
             ],
             "Resource": "*"
         },
         {
-            "Sid": "DenyDestructive",
+            "Sid": "DenyForbidden",
             "Effect": "Deny",
             "Action": [
                 "ec2:RunInstances",
-                "ec2:TerminateInstances",
-                "ec2:RebootInstances",
-                "cloudwatch:*"
+                "ce:*"
             ],
             "Resource": "*"
         }
@@ -384,26 +380,26 @@ aws sts assume-role \
 
 | Role | View Instances | Start/Stop | Reboot | Create | Terminate | Metrics | Costs |
 |------|---------------|------------|--------|--------|-----------|---------|-------|
-| User | ✅ All* | ✅ CloudSim only | ❌ | ❌ | ❌ | ❌ | ✅ |
-| DevOps Engineer | ✅ All | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| User | ✅ All* | ✅ CloudSim only | ✅ CloudSim only | ❌ | ✅ CloudSim only | ✅ | ❌ |
+| DevOps Engineer | ✅ All | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Admin | ✅ All | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 > *AWS IAM cannot filter DescribeInstances by tag
 
 ### CloudSim Application Level (Additional Filtering)
 
-| Role | View Instances | Start/Stop |
-|------|---------------|------------|
-| Admin | All | All |
-| DevOps Engineer | All | All |
-| User | Own only | Own only |
+| Role | View Instances | Start/Stop | Reboot/Terminate | Metrics | Costs |
+|------|---------------|------------|------------------|---------|-------|
+| Admin | All | All | All | All | All |
+| DevOps Engineer | All | All | All | All | All |
+| User | Own only | Own only | Own only | Own only | N/A |
 
 
 **How Instance Isolation Works:**
 1. **Tagging**: Instances created via CloudSim are tagged with `CreatedBy=<user_id>`
-2. **IAM Policy**: Limits Start/Stop to instances with `ManagedBy=CloudSim` tag
+2. **IAM Policy**: Limits Start/Stop/Reboot/Terminate to instances with `ManagedBy=CloudSim` tag
 3. **Backend Filter**: `list_instances()` filters results by `CreatedBy` tag for User role
-4. **Backend Check**: `start_instance()`/`stop_instance()` verify ownership for User role
+4. **Backend Check**: `start/stop/reboot/terminate` endpoints verify ownership for User role
 
 ---
 

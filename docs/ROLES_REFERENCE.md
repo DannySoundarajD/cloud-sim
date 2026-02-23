@@ -11,8 +11,8 @@ CloudSim uses a **3-role system** for access control:
 | Role | Permissions | Use Case |
 |------|-------------|----------|
 | **Admin** | Full access to all features | System administrators |
-| **DevOps Engineer** | Full EC2 + CloudWatch + Cost Explorer (no terminate) | DevOps teams managing infrastructure |
-| **User** | View instances + Start/Stop/Reboot own instances | End users |
+| **DevOps Engineer** | Full EC2 + CloudWatch + Cost Explorer (including terminate) | DevOps teams managing infrastructure |
+| **User** | Start/Stop/Reboot/Terminate own instances + own CloudWatch data | End users |
 
 ---
 
@@ -50,7 +50,7 @@ ce:*
 - ✅ View all instances
 - ✅ Create instances
 - ✅ Start/Stop/Reboot all instances
-- ❌ Terminate instances (denied)
+- ✅ Terminate all instances
 - ✅ View CloudWatch metrics
 - ✅ View Cost Explorer data
 - ❌ Manage users
@@ -62,16 +62,23 @@ ec2:RunInstances
 ec2:StartInstances
 ec2:StopInstances
 ec2:RebootInstances
+ec2:TerminateInstances
+ec2:CreateTags
 cloudwatch:GetMetricStatistics
+cloudwatch:GetMetricData
 cloudwatch:ListMetrics
+cloudwatch:DescribeAlarms
+cloudwatch:PutMetricAlarm
+cloudwatch:DeleteAlarms
 ce:GetCostAndUsage
+ce:GetCostForecast
 ```
 
 **Explicit Denies:**
 ```
-ec2:TerminateInstances
 ec2:CreateVpc
 ec2:DeleteVpc
+ec2:ModifyVpc*
 ```
 
 ---
@@ -84,9 +91,11 @@ ec2:DeleteVpc
 **Permissions:**
 - ✅ View own instances only
 - ❌ Create instances
-- ✅ Start/Stop/Reboot own instances
-- ❌ Terminate instances
-- ❌ View CloudWatch metrics
+- ✅ Start/Stop own instances
+- ✅ Reboot own instances
+- ✅ Terminate own instances
+- ✅ View CloudWatch metrics (own instances)
+- ✅ View CloudWatch alarms (own instances)
 - ❌ View Cost Explorer data
 - ❌ Manage users
 
@@ -97,11 +106,23 @@ ec2:DescribeInstanceStatus
 ec2:StartInstances (own only)
 ec2:StopInstances (own only)
 ec2:RebootInstances (own only)
+ec2:TerminateInstances (own only)
+cloudwatch:GetMetricData (own instances)
+cloudwatch:GetMetricStatistics (own instances)
+cloudwatch:ListMetrics
+cloudwatch:DescribeAlarms (own instances)
+```
+
+**Explicit Denies:**
+```
+ec2:RunInstances
+ce:*
 ```
 
 **Instance Isolation:**
 - Users can only see instances tagged with `CreatedBy=<their_user_id>`
 - Backend enforces this filter automatically
+- CloudWatch data is filtered to own instances only
 
 ---
 
@@ -148,9 +169,10 @@ sequenceDiagram
 | View all instances | ✅ | ✅ | ❌ |
 | View own instances | ✅ | ✅ | ✅ |
 | Create instances | ✅ | ✅ | ❌ |
-| Start/Stop/Reboot | ✅ All | ✅ All | ✅ Own only |
-| Terminate instances | ✅ | ❌ | ❌ |
-| View metrics | ✅ | ✅ | ❌ |
+| Start/Stop | ✅ All | ✅ All | ✅ Own only |
+| Reboot | ✅ | ✅ | ✅ Own only |
+| Terminate instances | ✅ | ✅ | ✅ Own only |
+| View metrics | ✅ | ✅ | ✅ Own only |
 | View costs | ✅ | ✅ | ❌ |
 | Manage users | ✅ | ❌ | ❌ |
 

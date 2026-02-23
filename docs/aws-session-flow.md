@@ -236,8 +236,8 @@ When `ENABLE_ROLE_BASED_ACCESS=true`, CloudSim uses STS AssumeRole to give users
 | CloudSim Role | IAM Role ARN | Permissions |
 |---------------|--------------|-------------|
 | Admin | `CloudSimAdminRole` | Full EC2 + User Management |
-| DevOps Engineer | `CloudSimDevOpsRole` | Full EC2 (including terminate) |
-| User | `CloudSimUserRole` | Read-only, own instances only |
+| DevOps Engineer | `CloudSimDevOpsRole` | Full EC2 (including terminate) + CloudWatch + Cost Explorer |
+| User | `CloudSimUserRole` | Manage (start/stop/reboot/terminate) own instances + own metrics |
 
 ### Configuration (.env)
 
@@ -596,16 +596,20 @@ echo "--- USER VIEW ---"
 curl -s -H "Authorization: Bearer $USER_TOKEN" http://localhost:8000/api/ec2/instances | json_pp
 ```
 
-### 3. Test Terminate Instance (Write Access)
+### 3. Test Terminate Instance
 
-Only Admin and DevOps can terminate any instance. Users are restricted.
+Admin and DevOps Engineer can terminate any instance. User can only terminate their own instances.
 
 ```bash
 # Replace i-xxxxxxxx with a real instance ID
 INSTANCE_ID="i-0abc123def456"
 
-# Try as USER (Should Fail if not owner)
+# Try as USER on instance they DON'T own (Should Fail - 403 Forbidden)
 curl -X DELETE -H "Authorization: Bearer $USER_TOKEN" \
+  http://localhost:8000/api/ec2/instances/$INSTANCE_ID
+
+# Try as DEVOPS (Should Succeed)
+curl -X DELETE -H "Authorization: Bearer $DEVOPS_TOKEN" \
   http://localhost:8000/api/ec2/instances/$INSTANCE_ID
 
 # Try as ADMIN (Should Succeed)

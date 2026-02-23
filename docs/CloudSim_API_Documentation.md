@@ -11,9 +11,9 @@ Authorization: Bearer <token>
 ```
 
 **Roles & Access Control (applies to all endpoints):**
-- **User**: Read-only monitoring; may start/stop own instances; no create/delete/storage/network changes.
-- **DevOps Engineer**: Create/scale/delete instances; attach storage; view network; adjust bandwidth/latency within admin policy.
-- **Admin**: Manage users/roles, quotas, network policy; export data; audit logs.
+- **User**: Manage (start/stop/reboot/terminate) own instances; view own metrics and alarms; no create/cost access.
+- **DevOps Engineer**: Create/manage/terminate all instances; view metrics and costs; **cannot manage users** or modify quotas.
+- **Admin**: Full access — all permissions including user management and quota modification.
 
 **Conventions**
 - **Content type:** `application/json` for requests/responses.
@@ -1424,9 +1424,9 @@ All endpoints may return the following error responses:
 
 API requests are rate-limited to prevent abuse:
 
-- **Standard users:** 100 requests per minute
-- **Premium users:** 500 requests per minute
-- **Admin users:** 1000 requests per minute
+- **User:** 100 requests per minute
+- **DevOps Engineer:** 500 requests per minute
+- **Admin:** 1000 requests per minute
 
 Rate limit headers are included in all responses:
 ```
