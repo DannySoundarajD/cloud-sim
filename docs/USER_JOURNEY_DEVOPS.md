@@ -60,18 +60,21 @@ Sam navigates to the **Monitoring** tab to review performance metrics. The insta
 
 The monitoring view provides five tabs - **CPU**, **Memory**, **Network**, **Disk I/O**, and **Cost** - each rendering a time-series chart for the selected instance and time range. Below the charts, a System Logs section displays timestamped log entries with INFO/WARN level tags. Sam also has access to Cost Explorer data for tracking spending trends.
 
+![DevOps Monitoring](images/deng/03-monitoring.png)
+*DevOps Engineer monitoring view showing CPU metrics for a selected instance.*
+
 ## Stage 5 - Settings - Overview
 
 Sam clicks **IAM & Settings** in the top navigation to open the settings sidebar. The Overview tab shows his email and role, a Role Permissions panel with all three role levels (Admin - Full Access; DevOps Engineer - Read/Write; User - Read Only), and Recent Audit Logs. Unlike the Admin view, there is no User Management section - Sam cannot add, delete, or modify user accounts.
 
-![IAM & Settings - DevOps Overview](images/deng/03-iam-settings-overview.png)
+![IAM & Settings - DevOps Overview](images/deng/04-iam-settings-overview.png)
 *DevOps Engineer Overview tab - no User Management section visible.*
 
 ## Stage 6 - Settings - Advanced
 
 Sam switches to the **Advanced Settings** tab. Resource Quotas (Max Instances: 20, Max vCPUs: 40) are displayed as view-only with a warning that modification requires Admin access. However, Sam can configure **Auto Scaling Policies** - toggling auto-scaling on/off and adjusting Scale Up and Scale Down thresholds. Notifications for Email Alerts and Slack Integration are also configurable.
 
-![IAM & Settings - DevOps Advanced](images/deng/04-iam-settings-advanced.png)
+![IAM & Settings - DevOps Advanced](images/deng/05-iam-settings-advanced.png)
 *Advanced Settings tab showing view-only quotas but editable auto-scaling and notifications.*
 
 | Setting | DevOps Access |
