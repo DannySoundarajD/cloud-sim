@@ -1180,16 +1180,26 @@ backend/
 
 ## Running the Backend
 
+### Runtime Requirements
+
+- Python 3.12+
+- PostgreSQL 15+ available and reachable through `DATABASE_URL`
+- `uvicorn` installed from `backend/requirements.txt`
+
 ```bash
 # Navigate to backend
 cd backend
 
 # Activate virtual environment
-source ../.venv/bin/activate  # Linux/Mac
-# or: ..\.venv\Scripts\activate  # Windows
+source venv/bin/activate  # Linux/Mac
+# or: venv\Scripts\activate  # Windows
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Ensure PostgreSQL is installed and running
+# Example connection string:
+# postgresql://postgres:password@localhost:5432/cloudsim
 
 # Set environment variables
 export DATABASE_URL="postgresql://postgres:password@localhost:5432/cloudsim"
