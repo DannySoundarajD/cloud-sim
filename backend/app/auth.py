@@ -31,7 +31,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -53,10 +53,14 @@ ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
 # =============================================================================
 # PASSWORD HASHING
 # =============================================================================
-# CryptContext handles the complexity of password hashing
-# - schemes: List of allowed hashing algorithms (bcrypt is recommended)
-# - deprecated: "auto" marks old schemes for migration
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+def _bcrypt_hash(password: str) -> str:
+    """Hash a password with bcrypt using the same `$2b$` format accepted by login verification."""
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("utf-8")
+
+
+def _bcrypt_verify(plain_password: str, hashed_password: str) -> bool:
+    """Verify a password against a bcrypt hash string."""
+    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
 
 # =============================================================================
@@ -119,7 +123,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Returns:
         True if password matches, False otherwise
     """
-    return pwd_context.verify(plain_password, hashed_password)
+    return _bcrypt_verify(plain_password, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
@@ -134,7 +138,7 @@ def get_password_hash(password: str) -> str:
     Returns:
         bcrypt hash string
     """
-    return pwd_context.hash(password)
+    return _bcrypt_hash(password)
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

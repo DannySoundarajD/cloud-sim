@@ -34,3 +34,4 @@ agt/
 # ProjectSprintPlan.csv
 
 root-credentials/
+backend/venv/

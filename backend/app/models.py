@@ -17,7 +17,7 @@
 # =============================================================================
 # IMPORTS
 # =============================================================================
-from sqlalchemy import Column, String, Integer, DateTime, Boolean
+from sqlalchemy import Column, String, Integer, DateTime, Boolean, CheckConstraint
 from datetime import datetime
 
 from .db import Base
@@ -45,6 +45,12 @@ class User(Base):
     - created_at: Account creation timestamp
     """
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('Admin', 'DevOps Engineer', 'User')",
+            name="ck_users_role_valid",
+        ),
+    )
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     email = Column(String, unique=True, index=True, nullable=False)
