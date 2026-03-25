@@ -1,5 +1,38 @@
 # CloudSim Database Schema
 
+## Entity Relationship Diagram
+
+```mermaid
+erDiagram
+    USERS {
+        int         id                PK "auto-increment"
+        varchar     email             UK "login identity"
+        varchar     hashed_password      "bcrypt hash"
+        varchar     role                 "Admin | DevOps Engineer | User"
+        boolean     is_active            "default true"
+        timestamp   created_at           "UTC, set on insert"
+    }
+
+    INSTANCES {
+        varchar     instance_id       PK "AWS EC2 instance ID"
+        varchar     name                 "Name tag"
+        varchar     instance_type        "e.g. t2.micro"
+        varchar     state                "pending | running | stopped | terminated"
+        varchar     public_ip            "nullable"
+        varchar     private_ip           "nullable"
+        varchar     availability_zone    "nullable"
+        timestamp   launch_time          "nullable, from AWS"
+        timestamp   last_synced          "UTC, updated on each sync"
+        int         created_by_user_id   FK "references USERS.id"
+    }
+
+    USERS ||--o{ INSTANCES : "creates"
+```
+
+> **Note:** `created_by_user_id` is enforced at the application layer, not as a database-level foreign key constraint. This is intentional — if a user is deleted, their historical instance records are preserved.
+
+---
+
 ## Overview
 CloudSim uses PostgreSQL as its primary application database. The database supports three core concerns:
 
