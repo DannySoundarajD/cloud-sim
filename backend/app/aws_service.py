@@ -29,10 +29,53 @@
 # IMPORTS
 # =============================================================================
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import (
+    ClientError,
+    EndpointConnectionError,
+    NoCredentialsError,
+    PartialCredentialsError,
+)
 from typing import Optional
 
 from .config import settings
+
+
+class AWSServiceError(Exception):
+    """Base exception for CloudSim AWS integration failures."""
+
+
+class AWSConfigurationError(AWSServiceError):
+    """Raised when AWS credentials or endpoint configuration are invalid."""
+
+
+def _handle_aws_exception(context: str, error: Exception) -> None:
+    """Normalize boto3 failures into user-friendly application exceptions."""
+    if isinstance(error, (NoCredentialsError, PartialCredentialsError)):
+        raise AWSConfigurationError(
+            "AWS credentials are not configured. Set AWS_ACCESS_KEY_ID and "
+            "AWS_SECRET_ACCESS_KEY, or provide root-credentials/credentials."
+        ) from error
+
+    if isinstance(error, EndpointConnectionError):
+        raise AWSConfigurationError(
+            f"Unable to reach AWS endpoints for region {settings.aws_region}. "
+            "Check network access and AWS region settings."
+        ) from error
+
+    if isinstance(error, ClientError):
+        error_code = error.response.get("Error", {}).get("Code", "Unknown")
+        if error_code in {"AuthFailure", "InvalidClientTokenId", "UnrecognizedClientException"}:
+            raise AWSConfigurationError(
+                "AWS credentials were rejected. Check the configured access key, "
+                "secret key, and AWS region."
+            ) from error
+        if error_code in {"AccessDenied", "UnauthorizedOperation"}:
+            raise AWSConfigurationError(
+                "AWS credentials do not have permission for this operation."
+            ) from error
+        raise AWSServiceError(f"{context}: {error}") from error
+
+    raise AWSServiceError(f"{context}: {error}") from error
 
 
 # =============================================================================
@@ -198,8 +241,8 @@ def list_instances(user_role: Optional[str] = None, user_id: Optional[int] = Non
                 })
         
         return instances
-    except ClientError as e:
-        raise Exception(f"Failed to list instances: {e}")
+    except Exception as e:
+        _handle_aws_exception("Failed to list instances", e)
 
 
 # =============================================================================
@@ -305,8 +348,8 @@ def get_instance(instance_id: str) -> Optional[dict]:
                 }
         
         return None
-    except ClientError as e:
-        raise Exception(f"Failed to get instance {instance_id}: {e}")
+    except Exception as e:
+        _handle_aws_exception(f"Failed to get instance {instance_id}", e)
 
 
 # =============================================================================
@@ -325,8 +368,8 @@ def start_instance(instance_id: str) -> dict:
     try:
         ec2.start_instances(InstanceIds=[instance_id])
         return {"message": f"Starting instance {instance_id}", "instance_id": instance_id}
-    except ClientError as e:
-        raise Exception(f"Failed to start instance: {e}")
+    except Exception as e:
+        _handle_aws_exception("Failed to start instance", e)
 
 
 def stop_instance(instance_id: str) -> dict:
@@ -342,8 +385,8 @@ def stop_instance(instance_id: str) -> dict:
     try:
         ec2.stop_instances(InstanceIds=[instance_id])
         return {"message": f"Stopping instance {instance_id}", "instance_id": instance_id}
-    except ClientError as e:
-        raise Exception(f"Failed to stop instance: {e}")
+    except Exception as e:
+        _handle_aws_exception("Failed to stop instance", e)
 
 
 def reboot_instance(instance_id: str) -> dict:
@@ -359,8 +402,8 @@ def reboot_instance(instance_id: str) -> dict:
     try:
         ec2.reboot_instances(InstanceIds=[instance_id])
         return {"message": f"Rebooting instance {instance_id}", "instance_id": instance_id}
-    except ClientError as e:
-        raise Exception(f"Failed to reboot instance: {e}")
+    except Exception as e:
+        _handle_aws_exception("Failed to reboot instance", e)
 
 
 def terminate_instance(instance_id: str) -> dict:
@@ -378,8 +421,8 @@ def terminate_instance(instance_id: str) -> dict:
     try:
         ec2.terminate_instances(InstanceIds=[instance_id])
         return {"message": f"Terminating instance {instance_id}", "instance_id": instance_id}
-    except ClientError as e:
-        raise Exception(f"Failed to terminate instance: {e}")
+    except Exception as e:
+        _handle_aws_exception("Failed to terminate instance", e)
 
 
 # =============================================================================
@@ -484,8 +527,8 @@ def create_instance(
             "subnet_id": subnet_id,
             "security_group_ids": security_group_ids,
         }
-    except ClientError as e:
-        raise Exception(f"Failed to create instance: {e}")
+    except Exception as e:
+        _handle_aws_exception("Failed to create instance", e)
 
 
 # =============================================================================
@@ -560,9 +603,8 @@ def get_instance_metrics(instance_id: str, period_minutes: int = 60) -> dict:
                 }
                 for dp in datapoints
             ]
-        except ClientError as e:
-            print(f"Error fetching {metric_name}: {e}")
-            return []
+        except Exception as e:
+            _handle_aws_exception(f"Failed to fetch metric {metric_name}", e)
     
     return {
         "instance_id": instance_id,
@@ -671,9 +713,8 @@ def get_daily_costs(days: int = 7) -> list[dict]:
             })
         
         return daily_costs
-    except ClientError as e:
-        print(f"Error fetching costs: {e}")
-        return []
+    except Exception as e:
+        _handle_aws_exception("Failed to fetch daily costs", e)
 
 
 def get_monthly_summary() -> dict:
@@ -717,6 +758,5 @@ def get_monthly_summary() -> dict:
             "projected_monthly": round(projected, 2),
             "days_elapsed": days_elapsed,
         }
-    except ClientError as e:
-        print(f"Error fetching monthly costs: {e}")
-        return {"month_to_date": 0, "projected_monthly": 0, "days_elapsed": 0}
+    except Exception as e:
+        _handle_aws_exception("Failed to fetch monthly cost summary", e)

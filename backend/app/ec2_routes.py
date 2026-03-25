@@ -41,6 +41,7 @@ from .auth import get_current_user
 from .models import User, Instance
 from .db import get_db
 from . import aws_service
+from .aws_service import AWSConfigurationError, AWSServiceError
 
 
 # =============================================================================
@@ -235,6 +236,15 @@ def _filter_instances_for_user(instances: list, user: User) -> list:
     return filtered
 
 
+def _raise_http_for_aws_error(error: Exception) -> None:
+    """Translate AWS service failures into clearer API responses."""
+    if isinstance(error, AWSConfigurationError):
+        raise HTTPException(status_code=503, detail=str(error))
+    if isinstance(error, AWSServiceError):
+        raise HTTPException(status_code=502, detail=str(error))
+    raise HTTPException(status_code=500, detail=str(error))
+
+
 # =============================================================================
 # HELPER - Check Instance Ownership
 # =============================================================================
@@ -257,19 +267,16 @@ def _check_instance_ownership(instance_id: str, user: User) -> bool:
         return True
     
     # For User role, check ownership via CreatedBy tag
-    try:
-        instance = aws_service.get_instance(instance_id)
-        if not instance:
-            return False
-        
-        # Check CreatedBy tag
-        for tag in instance.get("tags", []):
-            if tag.get("Key") == "CreatedBy" and tag.get("Value") == str(user.id):
-                return True
-        
+    instance = aws_service.get_instance(instance_id)
+    if not instance:
         return False
-    except Exception:
-        return False
+
+    # Check CreatedBy tag
+    for tag in instance.get("tags", []):
+        if tag.get("Key") == "CreatedBy" and tag.get("Value") == str(user.id):
+            return True
+
+    return False
 
 
 # =============================================================================
@@ -303,7 +310,7 @@ async def list_instances(
         filtered_instances = _filter_instances_for_user(instances, current_user)
         return filtered_instances
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        _raise_http_for_aws_error(e)
 
 
 # =============================================================================
@@ -350,7 +357,7 @@ async def get_instance(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        _raise_http_for_aws_error(e)
 
 
 # =============================================================================
@@ -398,7 +405,7 @@ async def create_instance(
         )
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        _raise_http_for_aws_error(e)
 
 
 # =============================================================================
@@ -421,18 +428,20 @@ async def start_instance(
         403: Access denied (not your instance)
         500: AWS API error
     """
-    # Check ownership for User role
-    if current_user.role == "User":
-        if not _check_instance_ownership(instance_id, current_user):
-            raise HTTPException(
-                status_code=403, 
-                detail="You can only start instances you created"
-            )
-    
     try:
+        # Check ownership for User role
+        if current_user.role == "User":
+            if not _check_instance_ownership(instance_id, current_user):
+                raise HTTPException(
+                    status_code=403,
+                    detail="You can only start instances you created"
+                )
+
         return aws_service.start_instance(instance_id)
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        _raise_http_for_aws_error(e)
 
 
 # =============================================================================
@@ -455,18 +464,20 @@ async def stop_instance(
         403: Access denied (not your instance)
         500: AWS API error
     """
-    # Check ownership for User role
-    if current_user.role == "User":
-        if not _check_instance_ownership(instance_id, current_user):
-            raise HTTPException(
-                status_code=403, 
-                detail="You can only stop instances you created"
-            )
-    
     try:
+        # Check ownership for User role
+        if current_user.role == "User":
+            if not _check_instance_ownership(instance_id, current_user):
+                raise HTTPException(
+                    status_code=403,
+                    detail="You can only stop instances you created"
+                )
+
         return aws_service.stop_instance(instance_id)
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        _raise_http_for_aws_error(e)
 
 
 # =============================================================================
@@ -489,18 +500,20 @@ async def reboot_instance(
         403: Access denied (not your instance)
         500: AWS API error
     """
-    # Check ownership for User role
-    if current_user.role == "User":
-        if not _check_instance_ownership(instance_id, current_user):
-            raise HTTPException(
-                status_code=403, 
-                detail="You can only reboot instances you created"
-            )
-    
     try:
+        # Check ownership for User role
+        if current_user.role == "User":
+            if not _check_instance_ownership(instance_id, current_user):
+                raise HTTPException(
+                    status_code=403,
+                    detail="You can only reboot instances you created"
+                )
+
         return aws_service.reboot_instance(instance_id)
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        _raise_http_for_aws_error(e)
 
 
 # =============================================================================
@@ -525,18 +538,20 @@ async def terminate_instance(
         403: Access denied (not your instance)
         500: AWS API error
     """
-    # Check ownership for User role
-    if current_user.role == "User":
-        if not _check_instance_ownership(instance_id, current_user):
-            raise HTTPException(
-                status_code=403, 
-                detail="You can only terminate instances you created"
-            )
-    
     try:
+        # Check ownership for User role
+        if current_user.role == "User":
+            if not _check_instance_ownership(instance_id, current_user):
+                raise HTTPException(
+                    status_code=403,
+                    detail="You can only terminate instances you created"
+                )
+
         return aws_service.terminate_instance(instance_id)
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        _raise_http_for_aws_error(e)
 
 
 # =============================================================================
@@ -582,7 +597,7 @@ async def get_instance_metrics(
     try:
         return aws_service.get_instance_metrics(instance_id, period_minutes=period)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        _raise_http_for_aws_error(e)
 
 
 @router.get("/instances/{instance_id}/metrics/current")
@@ -606,7 +621,7 @@ async def get_current_metrics(
     try:
         return aws_service.get_instance_current_metrics(instance_id)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        _raise_http_for_aws_error(e)
 
 
 # =============================================================================
@@ -633,7 +648,7 @@ async def get_daily_costs(
     try:
         return aws_service.get_daily_costs(days)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        _raise_http_for_aws_error(e)
 
 
 @router.get("/costs/summary")
@@ -653,4 +668,4 @@ async def get_cost_summary(
     try:
         return aws_service.get_monthly_summary()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        _raise_http_for_aws_error(e)
