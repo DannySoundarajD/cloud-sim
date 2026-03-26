@@ -97,7 +97,7 @@ export function InstanceDetailsPage({ instanceId }: InstanceDetailsPageProps) {
       await startInstance(instance.instance_id);
       toast.success("Instance starting...");
       fetchInstanceDetails(instance.instance_id);
-    } catch (e) {
+    } catch {
       toast.error("Failed to start instance");
     }
   };
@@ -109,7 +109,7 @@ export function InstanceDetailsPage({ instanceId }: InstanceDetailsPageProps) {
       await stopInstance(instance.instance_id);
       toast.success("Instance stopping...");
       fetchInstanceDetails(instance.instance_id);
-    } catch (e) {
+    } catch {
       toast.error("Failed to stop instance");
     }
   };
@@ -121,7 +121,7 @@ export function InstanceDetailsPage({ instanceId }: InstanceDetailsPageProps) {
       await rebootInstance(instance.instance_id);
       toast.success("Instance rebooting...");
       fetchInstanceDetails(instance.instance_id);
-    } catch (e) {
+    } catch {
       toast.error("Failed to reboot instance");
     }
   };
@@ -134,7 +134,7 @@ export function InstanceDetailsPage({ instanceId }: InstanceDetailsPageProps) {
         await terminateInstance(instance.instance_id);
         toast.success("Instance terminating...");
         fetchInstanceDetails(instance.instance_id);
-      } catch (e) {
+      } catch {
         toast.error("Failed to terminate instance");
       }
     }

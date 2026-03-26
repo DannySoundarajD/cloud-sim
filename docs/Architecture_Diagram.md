@@ -9,32 +9,32 @@
 
 ```mermaid
 flowchart TD
-    %% ── Actors ──────────────────────────────────────────────────────────────
-    DEV["👤 Developer / User"]
+    %% ── Actors ───────────────────────────────────────────────
+    DEV["👤 User"]
 
-    %% ── CI/CD Block ─────────────────────────────────────────────────────────
+    %% ── CI/CD Block ──────────────────────────────────────────
     subgraph CICD["CI/CD  (GitHub Actions)"]
-        GH["GitHub\nRepository"]
-        CB["CodeBuild\n(pytest + npm build)"]
-        CD["CodeDeploy\n(Render + Vercel)"]
-        GH -->|"13 push / PR"| CB
-        CB -->|"14 build passes"| CD
+        GH["GitHub"]
+        CB["Test & Build"]
+        CD["Deploy"]
+        GH -->|"13 push"| CB
+        CB -->|"14 pass"| CD
     end
 
-    %% ── Client Block ────────────────────────────────────────────────────────
+    %% ── Client Block ─────────────────────────────────────────
     subgraph CLIENT["Browser"]
-        UI["React App\n(Vite + TypeScript)"]
+        UI["React App"]
     end
 
-    %% ── Backend Block ───────────────────────────────────────────────────────
-    subgraph BACKEND["Backend  (FastAPI · Python)"]
+    %% ── Backend Block ────────────────────────────────────────
+    subgraph BACKEND["Backend  (FastAPI)"]
         direction TB
-        AUTH["auth_routes.py\nPOST /api/auth/login\nPOST /api/auth/register\nGET  /api/auth/me"]
-        EC2R["ec2_routes.py\nGET  /api/ec2/instances\nPOST /api/ec2/instances\nDELETE /api/ec2/instances/id"]
-        ADM["admin_routes.py\nGET  /api/admin/users\nPOST /api/admin/users\nDELETE /api/admin/users/id"]
         CORS["CORS Middleware"]
-        RBAC["RBAC Dependency\nget_current_user()"]
-        AWS_SVC["aws_service.py\n(boto3 wrapper)"]
+        RBAC["RBAC · get_current_user()"]
+        AUTH["auth_routes.py"]
+        EC2R["ec2_routes.py"]
+        ADM["admin_routes.py"]
+        AWS_SVC["aws_service.py"]
 
         CORS --> AUTH
         CORS --> EC2R
@@ -45,32 +45,32 @@ flowchart TD
         EC2R --> AWS_SVC
     end
 
-    %% ── Database Block ──────────────────────────────────────────────────────
+    %% ── Database Block ───────────────────────────────────────
     subgraph DB["PostgreSQL"]
-        USERS[("users\n─────\nid · email\nhashed_password\nrole · is_active\ncreated_at")]
-        INSTANCES[("instances\n─────\ninstance_id · name\ninstance_type · state\npublic_ip · private_ip\ncreated_by_user_id")]
+        USERS[("users")]
+        INSTANCES[("instances")]
     end
 
-    %% ── AWS Block ───────────────────────────────────────────────────────────
+    %% ── AWS Block ────────────────────────────────────────────
     subgraph AWS["AWS Cloud"]
-        EC2["Amazon EC2\n(Instances)"]
-        CW["Amazon CloudWatch\n(Metrics)"]
-        CE["AWS Cost Explorer\n(Billing)"]
+        EC2["EC2"]
+        CW["CloudWatch"]
+        CE["Cost Explorer"]
     end
 
-    %% ── Flows ───────────────────────────────────────────────────────────────
-    DEV -->|"1 open app"| UI
-    UI  -->|"2 POST /api/auth/login"| AUTH
-    AUTH -->|"3 lookup user"| USERS
-    AUTH -->|"4 return JWT"| UI
-    UI  -->|"5 Bearer token on all requests"| CORS
-    EC2R -->|"6 describe / run / stop / terminate"| EC2
-    EC2R -->|"7 sync instance metadata"| INSTANCES
-    EC2R -->|"8 GET metrics"| CW
-    EC2R -->|"9 GET costs"| CE
-    ADM -->|"10 manage users"| USERS
-    CD  -->|"11 deploy backend"| BACKEND
-    CD  -->|"12 deploy frontend"| CLIENT
+    %% ── Flows ────────────────────────────────────────────────
+    DEV     -->|"1 open app"| UI
+    UI      -->|"2 login"| AUTH
+    AUTH    -->|"3 verify user"| USERS
+    AUTH    -->|"4 return JWT"| UI
+    UI      -->|"5 Bearer token"| CORS
+    AWS_SVC -->|"6 EC2 actions"| EC2
+    EC2R    -->|"7 sync metadata"| INSTANCES
+    AWS_SVC -->|"8 fetch metrics"| CW
+    AWS_SVC -->|"9 fetch costs"| CE
+    ADM     -->|"10 manage users"| USERS
+    CD      -->|"11 deploy"| BACKEND
+    CD      -->|"12 deploy"| CLIENT
 ```
 
 ---
