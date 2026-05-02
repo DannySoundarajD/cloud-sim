@@ -40,7 +40,8 @@ from sqlalchemy.orm import Session
 from .auth import get_current_user
 from .models import User, Instance
 from .db import get_db
-from . import aws_service
+from . import aws_service, simulator_service
+from .config import settings
 from .aws_service import AWSConfigurationError, AWSServiceError
 
 
@@ -248,26 +249,31 @@ def _raise_http_for_aws_error(error: Exception) -> None:
 # =============================================================================
 # HELPER - Check Instance Ownership
 # =============================================================================
-def _check_instance_ownership(instance_id: str, user: User) -> bool:
+def _check_instance_ownership(instance_id: str, user: User, db: Session) -> bool:
     """
     Check if user owns the instance (by CreatedBy tag).
-    
+
     Used for instance actions (start, stop, reboot, terminate).
     Admins and DevOps can access any instance.
-    
+
     Args:
         instance_id: EC2 instance ID
         user: Current authenticated user
-        
+        db: Database session for simulator mode
+
     Returns:
         True if user can access this instance
     """
     # Admin and DevOps can access any instance
     if user.role in ["Admin", "DevOps Engineer"]:
         return True
-    
+
     # For User role, check ownership via CreatedBy tag
-    instance = aws_service.get_instance(instance_id)
+    if settings.use_simulator:
+        instance = simulator_service.get_simulated_instance(db, instance_id)
+    else:
+        instance = aws_service.get_instance(instance_id)
+
     if not instance:
         return False
 
@@ -300,16 +306,20 @@ async def list_instances(
         500: AWS API error
     """
     try:
-        # Fetch from AWS (using role-based access if enabled)
-        instances = aws_service.list_instances(current_user.role, current_user.id)
-        
-        # Sync to local database
-        sync_instances_to_db(instances, db)
+        if settings.use_simulator:
+            instances = simulator_service.list_simulated_instances(db)
+        else:
+            # Fetch from AWS (using role-based access if enabled)
+            instances = aws_service.list_instances(current_user.role, current_user.id)
+            # Sync to local database
+            sync_instances_to_db(instances, db)
         
         # Filter based on user role
         filtered_instances = _filter_instances_for_user(instances, current_user)
         return filtered_instances
     except Exception as e:
+        if settings.use_simulator:
+            raise HTTPException(status_code=500, detail=f"Simulation error: {str(e)}")
         _raise_http_for_aws_error(e)
 
 
@@ -319,7 +329,8 @@ async def list_instances(
 @router.get("/instances/{instance_id}", response_model=InstanceDetailResponse)
 async def get_instance(
     instance_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Get detailed information for a specific EC2 instance.
@@ -335,7 +346,11 @@ async def get_instance(
         500: AWS API error
     """
     try:
-        instance = aws_service.get_instance(instance_id)
+        if settings.use_simulator:
+            instance = simulator_service.get_simulated_instance(db, instance_id)
+        else:
+            instance = aws_service.get_instance(instance_id)
+
         if not instance:
             raise HTTPException(status_code=404, detail="Instance not found")
         
@@ -357,6 +372,8 @@ async def get_instance(
     except HTTPException:
         raise
     except Exception as e:
+        if settings.use_simulator:
+            raise HTTPException(status_code=500, detail=f"Simulation error: {str(e)}")
         _raise_http_for_aws_error(e)
 
 
@@ -366,30 +383,35 @@ async def get_instance(
 @router.post("/instances", response_model=ActionResponse)
 async def create_instance(
     request: CreateInstanceRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Create a new EC2 instance.
-    
+
     All authenticated users can create instances.
     Instances are tagged with CreatedBy to track ownership.
-    
+
     REQUEST BODY:
         {
             "name": "my-web-server",
             "instance_type": "t2.micro"
         }
-    
+
     ALLOWED INSTANCE TYPES:
         t2.nano, t2.micro, t2.small, t2.medium, t2.large
-    
+
     RETURNS:
         200: Instance created successfully
         400: Invalid instance type
         500: AWS API error
     """
     # Validate instance type
-    allowed_types = aws_service.get_available_instance_types()
+    if settings.use_simulator:
+        allowed_types = ["t2.nano", "t2.micro", "t2.small", "t2.medium", "t2.large"]
+    else:
+        allowed_types = aws_service.get_available_instance_types()
+
     if request.instance_type not in allowed_types:
         raise HTTPException(
             status_code=400,
@@ -397,14 +419,24 @@ async def create_instance(
         )
     
     try:
-        result = aws_service.create_instance(
-            name=request.name,
-            instance_type=request.instance_type,
-            user_id=current_user.id,
-            user_email=current_user.email,
-        )
+        if settings.use_simulator:
+            result = simulator_service.create_simulated_instance(
+                db=db,
+                name=request.name,
+                instance_type=request.instance_type,
+                user_id=current_user.id
+            )
+        else:
+            result = aws_service.create_instance(
+                name=request.name,
+                instance_type=request.instance_type,
+                user_id=current_user.id,
+                user_email=current_user.email,
+            )
         return result
     except Exception as e:
+        if settings.use_simulator:
+            raise HTTPException(status_code=500, detail=f"Simulation error: {str(e)}")
         _raise_http_for_aws_error(e)
 
 
@@ -414,7 +446,8 @@ async def create_instance(
 @router.post("/instances/{instance_id}/start", response_model=ActionResponse)
 async def start_instance(
     instance_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Start a stopped EC2 instance.
@@ -429,18 +462,22 @@ async def start_instance(
         500: AWS API error
     """
     try:
-        # Check ownership for User role
+        # Check ownership for User role (simulator needs this anyway)
         if current_user.role == "User":
-            if not _check_instance_ownership(instance_id, current_user):
+            if not _check_instance_ownership(instance_id, current_user, db):
                 raise HTTPException(
                     status_code=403,
                     detail="You can only start instances you created"
                 )
 
+        if settings.use_simulator:
+            return simulator_service.update_simulated_instance_state(db, instance_id, "running")
         return aws_service.start_instance(instance_id)
     except HTTPException:
         raise
     except Exception as e:
+        if settings.use_simulator:
+            raise HTTPException(status_code=500, detail=f"Simulation error: {str(e)}")
         _raise_http_for_aws_error(e)
 
 
@@ -450,7 +487,8 @@ async def start_instance(
 @router.post("/instances/{instance_id}/stop", response_model=ActionResponse)
 async def stop_instance(
     instance_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Stop a running EC2 instance.
@@ -465,18 +503,21 @@ async def stop_instance(
         500: AWS API error
     """
     try:
-        # Check ownership for User role
         if current_user.role == "User":
-            if not _check_instance_ownership(instance_id, current_user):
+            if not _check_instance_ownership(instance_id, current_user, db):
                 raise HTTPException(
                     status_code=403,
                     detail="You can only stop instances you created"
                 )
 
+        if settings.use_simulator:
+            return simulator_service.update_simulated_instance_state(db, instance_id, "stopped")
         return aws_service.stop_instance(instance_id)
     except HTTPException:
         raise
     except Exception as e:
+        if settings.use_simulator:
+            raise HTTPException(status_code=500, detail=f"Simulation error: {str(e)}")
         _raise_http_for_aws_error(e)
 
 
@@ -486,7 +527,8 @@ async def stop_instance(
 @router.post("/instances/{instance_id}/reboot", response_model=ActionResponse)
 async def reboot_instance(
     instance_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Reboot an EC2 instance.
@@ -501,18 +543,21 @@ async def reboot_instance(
         500: AWS API error
     """
     try:
-        # Check ownership for User role
         if current_user.role == "User":
-            if not _check_instance_ownership(instance_id, current_user):
+            if not _check_instance_ownership(instance_id, current_user, db):
                 raise HTTPException(
                     status_code=403,
                     detail="You can only reboot instances you created"
                 )
 
+        if settings.use_simulator:
+            return simulator_service.update_simulated_instance_state(db, instance_id, "rebooting")
         return aws_service.reboot_instance(instance_id)
     except HTTPException:
         raise
     except Exception as e:
+        if settings.use_simulator:
+            raise HTTPException(status_code=500, detail=f"Simulation error: {str(e)}")
         _raise_http_for_aws_error(e)
 
 
@@ -522,7 +567,8 @@ async def reboot_instance(
 @router.delete("/instances/{instance_id}", response_model=ActionResponse)
 async def terminate_instance(
     instance_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Terminate (delete) an EC2 instance permanently.
@@ -539,18 +585,21 @@ async def terminate_instance(
         500: AWS API error
     """
     try:
-        # Check ownership for User role
         if current_user.role == "User":
-            if not _check_instance_ownership(instance_id, current_user):
+            if not _check_instance_ownership(instance_id, current_user, db):
                 raise HTTPException(
                     status_code=403,
                     detail="You can only terminate instances you created"
                 )
 
+        if settings.use_simulator:
+            return simulator_service.update_simulated_instance_state(db, instance_id, "terminated")
         return aws_service.terminate_instance(instance_id)
     except HTTPException:
         raise
     except Exception as e:
+        if settings.use_simulator:
+            raise HTTPException(status_code=500, detail=f"Simulation error: {str(e)}")
         _raise_http_for_aws_error(e)
 
 
@@ -561,10 +610,12 @@ async def terminate_instance(
 async def get_instance_types(current_user: User = Depends(get_current_user)):
     """
     Get list of available EC2 instance types.
-    
+
     RETURNS:
         200: {"instance_types": ["t2.nano", "t2.micro", ...]}
     """
+    if settings.use_simulator:
+        return {"instance_types": ["t2.nano", "t2.micro", "t2.small", "t2.medium", "t2.large"]}
     return {"instance_types": aws_service.get_available_instance_types()}
 
 
@@ -576,7 +627,8 @@ async def get_instance_types(current_user: User = Depends(get_current_user)):
 async def get_instance_metrics(
     instance_id: str,
     period: int = 60,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Get CloudWatch metrics history for an instance.
@@ -595,21 +647,26 @@ async def get_instance_metrics(
         }
     """
     try:
+        if settings.use_simulator:
+            return simulator_service.get_simulated_metrics(db, instance_id, period_minutes=period)
         return aws_service.get_instance_metrics(instance_id, period_minutes=period)
     except Exception as e:
+        if settings.use_simulator:
+            raise HTTPException(status_code=500, detail=f"Simulation error: {str(e)}")
         _raise_http_for_aws_error(e)
 
 
 @router.get("/instances/{instance_id}/metrics/current")
 async def get_current_metrics(
     instance_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Get current (latest) metrics for an instance.
-    
+
     Useful for dashboard quick stats.
-    
+
     RETURNS:
         {
             "instance_id": "i-xxx",
@@ -619,8 +676,12 @@ async def get_current_metrics(
         }
     """
     try:
+        if settings.use_simulator:
+            return simulator_service.get_simulated_current_metrics(db, instance_id)
         return aws_service.get_instance_current_metrics(instance_id)
     except Exception as e:
+        if settings.use_simulator:
+            raise HTTPException(status_code=500, detail=f"Simulation error: {str(e)}")
         _raise_http_for_aws_error(e)
 
 
@@ -631,7 +692,8 @@ async def get_current_metrics(
 @router.get("/costs/daily")
 async def get_daily_costs(
     days: int = 7,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Get daily cost breakdown for the last N days.
@@ -646,14 +708,19 @@ async def get_daily_costs(
         ]
     """
     try:
+        if settings.use_simulator:
+            return simulator_service.get_simulated_costs(db, days)
         return aws_service.get_daily_costs(days)
     except Exception as e:
+        if settings.use_simulator:
+            raise HTTPException(status_code=500, detail=f"Simulation error: {str(e)}")
         _raise_http_for_aws_error(e)
 
 
 @router.get("/costs/summary")
 async def get_cost_summary(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Get current month cost summary with projection.
@@ -666,6 +733,10 @@ async def get_cost_summary(
         }
     """
     try:
+        if settings.use_simulator:
+            return simulator_service.get_simulated_monthly_summary(db)
         return aws_service.get_monthly_summary()
     except Exception as e:
+        if settings.use_simulator:
+            raise HTTPException(status_code=500, detail=f"Simulation error: {str(e)}")
         _raise_http_for_aws_error(e)

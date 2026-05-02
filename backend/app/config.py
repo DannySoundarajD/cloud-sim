@@ -25,8 +25,7 @@
 # =============================================================================
 # IMPORTS
 # =============================================================================
-from pydantic_settings import BaseSettings
-from pydantic import field_validator
+from pydantic import validator, BaseSettings
 from typing import Optional, Tuple
 from functools import lru_cache
 import secrets
@@ -168,13 +167,14 @@ class Settings(BaseSettings):
     # =========================================================================
     enable_cost_explorer: bool = True
     enable_role_based_access: bool = False  # Set to True to enable IAM role assumption
+    use_simulator: bool = False  # Set to True to use local database simulation instead of AWS
     
     # =========================================================================
     # VALIDATORS
     # =========================================================================
-    @field_validator('secret_key')
+    @validator('secret_key')
     @classmethod
-    def validate_secret_key(cls, v: str, info) -> str:
+    def validate_secret_key(cls, v):
         """
         Validate SECRET_KEY security.
         

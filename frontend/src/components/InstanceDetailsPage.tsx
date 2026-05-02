@@ -34,11 +34,13 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Play, Square, RotateCw, Trash2, Copy, ExternalLink, Settings, Loader2, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { ScalingConfigDialog } from "./ScalingConfigDialog";
-import { getInstance, startInstance, stopInstance, rebootInstance, terminateInstance, type EC2InstanceDetails } from "../api/ec2";
+import { getInstance, startInstance, stopInstance, rebootInstance, terminateInstance, listInstances, type EC2Instance, type EC2InstanceDetails } from "../api/ec2";
 import { toast } from "sonner";
+import { ActionConfirmDialog } from "./ActionConfirmDialog";
 
 
 // =============================================================================
@@ -59,21 +61,55 @@ export function InstanceDetailsPage({ instanceId }: InstanceDetailsPageProps) {
   // State
   // ---------------------------------------------------------------------------
   const [instance, setInstance] = useState<EC2InstanceDetails | null>(null);
+  const [instances, setInstances] = useState<EC2Instance[]>([]);
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(instanceId ?? null);
   const [loading, setLoading] = useState(false);
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<"start" | "stop" | "reboot" | "terminate" | null>(null);
 
   // ---------------------------------------------------------------------------
   // API Handlers - Fetch Instance Details
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    if (instanceId) {
-      fetchInstanceDetails(instanceId);
-    }
+    setSelectedInstanceId(instanceId ?? null);
   }, [instanceId]);
 
-  const fetchInstanceDetails = async (id: string) => {
-    setLoading(true);
+  useEffect(() => {
+    const loadInstances = async () => {
+      try {
+        const data = await listInstances();
+        setInstances(data);
+        setSelectedInstanceId((prev) => {
+          if (prev && data.some((inst) => inst.instance_id === prev)) return prev;
+          return data.length > 0 ? data[0].instance_id : null;
+        });
+      } catch {
+        toast.error("Failed to load instance list");
+      }
+    };
+    loadInstances();
+    const intervalId = window.setInterval(loadInstances, 10000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    if (selectedInstanceId) {
+      fetchInstanceDetails(selectedInstanceId);
+    }
+  }, [selectedInstanceId]);
+
+  useEffect(() => {
+    if (!selectedInstanceId) return;
+    const intervalId = window.setInterval(() => {
+      fetchInstanceDetails(selectedInstanceId, true);
+    }, 5000);
+    return () => window.clearInterval(intervalId);
+  }, [selectedInstanceId]);
+
+  const fetchInstanceDetails = async (id: string, silent = false) => {
+    if (!silent) setLoading(true);
     try {
       // API CALL: GET /api/ec2/instances/:id
       const data = await getInstance(id);
@@ -82,7 +118,7 @@ export function InstanceDetailsPage({ instanceId }: InstanceDetailsPageProps) {
       console.error("Failed to fetch instance details:", error);
       toast.error("Failed to load instance details");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -128,27 +164,67 @@ export function InstanceDetailsPage({ instanceId }: InstanceDetailsPageProps) {
 
   const handleTerminate = async () => {
     if (!instance) return;
-    if (confirm("Are you sure you want to terminate this instance? This cannot be undone.")) {
-      try {
-        // API CALL: DELETE /api/ec2/instances/:id
-        await terminateInstance(instance.instance_id);
-        toast.success("Instance terminating...");
-        fetchInstanceDetails(instance.instance_id);
-      } catch {
-        toast.error("Failed to terminate instance");
-      }
+    try {
+      // API CALL: DELETE /api/ec2/instances/:id
+      await terminateInstance(instance.instance_id);
+      toast.success("Instance terminating...");
+      fetchInstanceDetails(instance.instance_id);
+    } catch {
+      toast.error("Failed to terminate instance");
     }
   };
+
+  const openActionConfirm = (action: "start" | "stop" | "reboot" | "terminate") => {
+    setPendingAction(action);
+    setConfirmOpen(true);
+  };
+
+  const executePendingAction = async () => {
+    if (!pendingAction) return;
+    if (pendingAction === "start") await handleStart();
+    if (pendingAction === "stop") await handleStop();
+    if (pendingAction === "reboot") await handleReboot();
+    if (pendingAction === "terminate") await handleTerminate();
+  };
+
+  const actionCopy =
+    pendingAction === "start"
+      ? {
+        title: "Start this instance?",
+        description: `This will power on "${instance?.name || instance?.instance_id || "instance"}" and begin active compute usage.`,
+        confirmLabel: "Start Instance",
+        confirmClassName: "bg-green-600 hover:bg-green-700 text-white",
+      }
+      : pendingAction === "stop"
+        ? {
+          title: "Stop this instance?",
+          description: `This pauses workloads on "${instance?.name || instance?.instance_id || "instance"}" until it is started again.`,
+          confirmLabel: "Stop Instance",
+          confirmClassName: "bg-gray-700 hover:bg-gray-800 text-white",
+        }
+        : pendingAction === "reboot"
+          ? {
+            title: "Reboot this instance?",
+            description: `This will restart "${instance?.name || instance?.instance_id || "instance"}". Connections may be briefly interrupted.`,
+            confirmLabel: "Reboot Instance",
+            confirmClassName: "bg-blue-600 hover:bg-blue-700 text-white",
+          }
+          : {
+            title: "Terminate this instance?",
+            description: `This permanently deletes "${instance?.name || instance?.instance_id || "instance"}". This action cannot be undone.`,
+            confirmLabel: "Terminate Instance",
+            confirmClassName: "bg-red-600 hover:bg-red-700 text-white",
+          };
 
   // ---------------------------------------------------------------------------
   // Render - Empty State (no instance selected)
   // ---------------------------------------------------------------------------
 
-  if (!instanceId) {
+  if (!selectedInstanceId) {
     return (
       <div className="flex h-[400px] items-center justify-center flex-col gap-4">
         <AlertCircle className="h-12 w-12 text-gray-400" />
-        <p className="text-gray-600">Select an instance from the Dashboard to view details.</p>
+        <p className="text-gray-600">No instances found. Launch one to view details.</p>
       </div>
     );
   }
@@ -195,7 +271,19 @@ export function InstanceDetailsPage({ instanceId }: InstanceDetailsPageProps) {
           <p className="text-sm text-gray-600 mt-1">{instance.instance_id}</p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <Select value={selectedInstanceId ?? ""} onValueChange={setSelectedInstanceId}>
+            <SelectTrigger className="w-[260px]">
+              <SelectValue placeholder="Select instance" />
+            </SelectTrigger>
+            <SelectContent>
+              {instances.map((inst) => (
+                <SelectItem key={inst.instance_id} value={inst.instance_id}>
+                  {inst.name || inst.instance_id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button
             variant="outline"
             size="sm"
@@ -205,19 +293,19 @@ export function InstanceDetailsPage({ instanceId }: InstanceDetailsPageProps) {
             <Settings className="h-4 w-4 mr-2" />
             Configure
           </Button>
-          <Button variant="outline" size="sm" onClick={handleStart} disabled={instance.state === 'running'}>
+          <Button variant="outline" size="sm" onClick={() => openActionConfirm("start")} disabled={instance.state === 'running'}>
             <Play className="h-4 w-4 mr-2" />
             Start
           </Button>
-          <Button variant="outline" size="sm" onClick={handleStop} disabled={instance.state !== 'running'}>
+          <Button variant="outline" size="sm" onClick={() => openActionConfirm("stop")} disabled={instance.state !== 'running'}>
             <Square className="h-4 w-4 mr-2" />
             Stop
           </Button>
-          <Button variant="outline" size="sm" onClick={handleReboot} disabled={instance.state !== 'running'}>
+          <Button variant="outline" size="sm" onClick={() => openActionConfirm("reboot")} disabled={instance.state !== 'running'}>
             <RotateCw className="h-4 w-4 mr-2" />
             Reboot
           </Button>
-          <Button variant="outline" size="sm" onClick={handleTerminate} className="text-red-600 hover:text-red-700">
+          <Button variant="outline" size="sm" onClick={() => openActionConfirm("terminate")} className="text-red-600 hover:text-red-700">
             <Trash2 className="h-4 w-4 mr-2" />
             Terminate
           </Button>
@@ -312,6 +400,22 @@ export function InstanceDetailsPage({ instanceId }: InstanceDetailsPageProps) {
               <div>
                 <p className="text-sm text-gray-600">Key Pair Name</p>
                 <p className="mt-1">{instance.key_name || '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Public DNS</p>
+                <p className="mt-1 break-all">{instance.public_dns || '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Private DNS</p>
+                <p className="mt-1 break-all">{instance.private_dns || '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">VPC ID</p>
+                <p className="mt-1">{instance.vpc_id || '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Subnet ID</p>
+                <p className="mt-1">{instance.subnet_id || '-'}</p>
               </div>
             </div>
           </Card>
@@ -460,6 +564,16 @@ export function InstanceDetailsPage({ instanceId }: InstanceDetailsPageProps) {
         open={isConfigDialogOpen}
         onOpenChange={setIsConfigDialogOpen}
         instanceName={instance.name}
+      />
+
+      <ActionConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={actionCopy.title}
+        description={actionCopy.description}
+        confirmLabel={actionCopy.confirmLabel}
+        confirmClassName={actionCopy.confirmClassName}
+        onConfirm={executePendingAction}
       />
     </div>
   );

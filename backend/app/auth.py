@@ -104,7 +104,7 @@ class UserRead(BaseModel):
     is_active: bool
 
     class Config:
-        from_attributes = True  # Allows ORM model conversion
+        orm_mode = True  # Allows ORM model conversion
 
 
 # =============================================================================

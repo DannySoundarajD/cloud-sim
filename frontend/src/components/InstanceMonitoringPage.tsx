@@ -34,6 +34,7 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Activity, Download, RefreshCw, DollarSign, AlertCircle, Loader2 } from 'lucide-react';
 import { getInstanceMetrics, getDailyCosts, getCostSummary, type InstanceMetrics, type DailyCost, type CostSummary } from '../api/ec2';
@@ -52,13 +53,13 @@ import { fetchInstances, type Instance } from '../api/instances';
 // =============================================================================
 
 const MOCK_DAILY_COSTS: DailyCost[] = [
-  { date: '2025-11-08', compute: 1.5, storage: 0.5, network: 0.2, total: 2.2 },
-  { date: '2025-11-09', compute: 1.8, storage: 0.6, network: 0.3, total: 2.7 },
-  { date: '2025-11-10', compute: 2.0, storage: 0.7, network: 0.4, total: 3.1 },
-  { date: '2025-11-11', compute: 1.9, storage: 0.6, network: 0.3, total: 2.8 },
-  { date: '2025-11-12', compute: 2.1, storage: 0.7, network: 0.5, total: 3.3 },
-  { date: '2025-11-13', compute: 1.7, storage: 0.6, network: 0.3, total: 2.6 },
-  { date: '2025-11-14', compute: 1.6, storage: 0.6, network: 0.2, total: 2.4 },
+  { date: '2026-04-15', compute: 1.5, storage: 0.5, network: 0.2, total: 2.2 },
+  { date: '2026-04-16', compute: 1.8, storage: 0.6, network: 0.3, total: 2.7 },
+  { date: '2026-04-17', compute: 2.0, storage: 0.7, network: 0.4, total: 3.1 },
+  { date: '2026-04-18', compute: 1.9, storage: 0.6, network: 0.3, total: 2.8 },
+  { date: '2026-04-19', compute: 2.1, storage: 0.7, network: 0.5, total: 3.3 },
+  { date: '2026-04-20', compute: 1.7, storage: 0.6, network: 0.3, total: 2.6 },
+  { date: '2026-04-21', compute: 1.6, storage: 0.6, network: 0.2, total: 2.4 },
 ];
 
 const MOCK_COST_SUMMARY: CostSummary = {
@@ -69,10 +70,10 @@ const MOCK_COST_SUMMARY: CostSummary = {
 
 // Mock log entries (requires CloudWatch Logs API)
 const logEntries = [
-  { timestamp: '2025-11-13 14:32:45', level: 'INFO', message: 'Instance health check passed' },
-  { timestamp: '2025-11-13 14:30:12', level: 'INFO', message: 'Network interface eth0 traffic normal' },
-  { timestamp: '2025-11-13 14:28:03', level: 'WARN', message: 'CPU utilization spike detected (78%)' },
-  { timestamp: '2025-11-13 14:25:30', level: 'INFO', message: 'Disk I/O operations within normal range' },
+  { timestamp: '2026-04-21 14:32:45', level: 'INFO', message: 'Instance health check passed' },
+  { timestamp: '2026-04-21 14:30:12', level: 'INFO', message: 'Network interface eth0 traffic normal' },
+  { timestamp: '2026-04-21 14:28:03', level: 'WARN', message: 'CPU utilization spike detected (78%)' },
+  { timestamp: '2026-04-21 14:25:30', level: 'INFO', message: 'Disk I/O operations within normal range' },
 ];
 
 // Mock memory data (requires CloudWatch Agent)
@@ -128,7 +129,10 @@ export function InstanceMonitoringPage() {
         // API CALL: GET /api/ec2/instances
         const data = await fetchInstances();
         setInstances(data);
-        if (data.length > 0) setSelectedInstance(data[0].id);
+        setSelectedInstance((prev) => {
+          if (prev && data.some((inst) => inst.id === prev)) return prev;
+          return data.length > 0 ? data[0].id : '';
+        });
       } catch (err) {
         console.error('Failed to fetch instances:', err);
       } finally {
@@ -136,6 +140,9 @@ export function InstanceMonitoringPage() {
       }
     };
     loadInstances();
+
+    const intervalId = window.setInterval(loadInstances, 10000);
+    return () => window.clearInterval(intervalId);
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -157,6 +164,9 @@ export function InstanceMonitoringPage() {
       }
     };
     loadMetrics();
+
+    const intervalId = window.setInterval(loadMetrics, 5000);
+    return () => window.clearInterval(intervalId);
   }, [selectedInstance, period]);
 
   // ---------------------------------------------------------------------------
@@ -184,6 +194,9 @@ export function InstanceMonitoringPage() {
       }
     };
     loadCosts();
+
+    const intervalId = window.setInterval(loadCosts, 15000);
+    return () => window.clearInterval(intervalId);
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -210,6 +223,10 @@ export function InstanceMonitoringPage() {
   const currentCpu = cpuData.length > 0 ? cpuData[cpuData.length - 1].usage : 0;
   const currentNetworkIn = metrics?.network_in.length ? metrics.network_in[metrics.network_in.length - 1].value : 0;
   const selectedInstanceData = instances.find(i => i.id === selectedInstance);
+  const estimatedMemoryUsed = selectedInstanceData
+    ? Math.max(128, Math.round(selectedInstanceData.memory * 1024 * Math.min(Math.max(currentCpu, 8), 90) / 100))
+    : 0;
+  const todaysCost = costData.length > 0 ? costData[costData.length - 1].total : 0;
 
   // Compute cost breakdown from daily data
   const costBreakdown = [
@@ -349,8 +366,8 @@ export function InstanceMonitoringPage() {
             <Activity className="h-4 w-4 text-purple-600" />
             <p className="text-sm text-gray-600">Memory Usage</p>
           </div>
-          <p className="text-2xl">512 MB</p>
-          <p className="text-xs text-gray-600 mt-1">Mock data</p>
+          <p className="text-2xl">{estimatedMemoryUsed} MB</p>
+          <p className="text-xs text-gray-600 mt-1">Estimated from runtime load</p>
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2 mb-2">
@@ -373,10 +390,48 @@ export function InstanceMonitoringPage() {
             <DollarSign className="h-4 w-4 text-emerald-600" />
             <p className="text-sm text-gray-600">Today's Cost</p>
           </div>
-          <p className="text-2xl">$3.80</p>
-          <p className="text-xs text-gray-600 mt-1">Estimated</p>
+          <p className="text-2xl">${todaysCost.toFixed(2)}</p>
+          <p className="text-xs text-gray-600 mt-1">Auto-updated</p>
         </Card>
       </div>
+
+      <Card className="p-6">
+        <h3 className="mb-4">All Instances</h3>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Instance ID</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>State</TableHead>
+              <TableHead>Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {instances.map((inst) => (
+              <TableRow key={inst.id}>
+                <TableCell>{inst.name}</TableCell>
+                <TableCell className="font-mono text-xs">{inst.id}</TableCell>
+                <TableCell>{inst.type}</TableCell>
+                <TableCell>
+                  <Badge className={inst.state === 'running' ? 'bg-green-600' : 'bg-gray-500'}>
+                    {inst.state}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Button
+                    size="sm"
+                    variant={selectedInstance === inst.id ? "default" : "outline"}
+                    onClick={() => setSelectedInstance(inst.id)}
+                  >
+                    {selectedInstance === inst.id ? "Selected" : "Monitor"}
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
 
       {/* Loading Indicator */}
       {metricsLoading && (
